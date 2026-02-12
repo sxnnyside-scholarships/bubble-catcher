@@ -199,7 +199,7 @@
       <h2 class="mb-4 text-lg font-semibold">{$t.settings.legal}</h2>
       <div class="flex gap-4">
         <a
-          href="https://sxnnysideproject.com/privacy"
+          href="https://www.notion.so/Bubble-Catcher-Privacy-Policy-3059f9a551d280a3ab2df966bc2d4048?source=copy_link"
           target="_blank"
           rel="noopener noreferrer"
           class="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-4 py-2.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text)]"
@@ -210,7 +210,7 @@
           </svg>
         </a>
         <a
-          href="https://sxnnysideproject.com/terms"
+          href="https://www.notion.so/Bubble-Catcher-Terms-and-Conditions-3059f9a551d2807283c3db263a2fee21?source=copy_link"
           target="_blank"
           rel="noopener noreferrer"
           class="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-4 py-2.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text)]"
