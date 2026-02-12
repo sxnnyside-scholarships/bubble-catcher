@@ -68,6 +68,42 @@ CREATE INDEX IF NOT EXISTS idx_bubble_execution_history_user_id ON bubble_execut
 CREATE INDEX IF NOT EXISTS idx_bubble_execution_history_created_at ON bubble_execution_history(created_at DESC);
 
 -- ============================================
+-- Bubble Execution Audit (security audit log)
+-- Lighter than execution_history: no raw SQL, only hash
+-- ============================================
+CREATE TABLE IF NOT EXISTS bubble_execution_audit (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  dialect TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('success', 'error', 'timeout', 'killed')),
+  execution_time_ms INTEGER NOT NULL,
+  query_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bubble_execution_audit_user_id ON bubble_execution_audit(user_id);
+CREATE INDEX IF NOT EXISTS idx_bubble_execution_audit_created_at ON bubble_execution_audit(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bubble_execution_audit_query_hash ON bubble_execution_audit(query_hash);
+
+-- ============================================
+-- Bubble Telemetry (lightweight event tracking)
+-- ============================================
+CREATE TABLE IF NOT EXISTS bubble_telemetry (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK (event_type IN ('ANALYSIS', 'EXECUTION')),
+  dialect TEXT NOT NULL,
+  execution_time_ms INTEGER,
+  success BOOLEAN NOT NULL DEFAULT true,
+  query_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bubble_telemetry_user_id ON bubble_telemetry(user_id);
+CREATE INDEX IF NOT EXISTS idx_bubble_telemetry_created_at ON bubble_telemetry(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bubble_telemetry_dialect ON bubble_telemetry(dialect);
+
+-- ============================================
 -- Updated_at trigger
 -- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -97,8 +133,16 @@ ALTER TABLE bubble_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bubble_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bubble_saved_queries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bubble_execution_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bubble_execution_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bubble_telemetry ENABLE ROW LEVEL SECURITY;
 
 -- Bubble profiles: users can read/update only their own
+CREATE POLICY "Users can insert own profile"
+  ON bubble_profiles
+  FOR INSERT
+  TO authenticated
+  WITH CHECK ((SELECT auth.uid()) = id);
+  
 CREATE POLICY "Users can view own profile"
   ON bubble_profiles FOR SELECT
   USING (auth.uid() = id);
@@ -173,6 +217,24 @@ CREATE POLICY "Users can view own execution history"
 CREATE POLICY "Users can create execution history"
   ON bubble_execution_history FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+-- Bubble execution audit: users can view own, insert via service role
+CREATE POLICY "Users can view own audit records"
+  ON bubble_execution_audit FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create audit records"
+  ON bubble_execution_audit FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Bubble telemetry: users can read own, insert via service role
+CREATE POLICY "Users can view own telemetry"
+  ON bubble_telemetry FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Service can insert telemetry"
+  ON bubble_telemetry FOR INSERT
+  WITH CHECK (true);
 
 -- ============================================
 -- Project limit enforcement function

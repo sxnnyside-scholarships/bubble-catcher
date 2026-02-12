@@ -76,6 +76,15 @@ export const projectRoutes = new Elysia({ prefix: '/projects' })
     params: t.Object({ id: t.String() }),
   })
 
+  /* Recent saved queries (for suggestion chips) */
+  .get('/:id/queries/recent', async ({ auth, params, query }) => {
+    const limit = query['limit'] ? parseInt(query['limit'] as string, 10) : 5;
+    const queries = await projectService.recentQueries(auth.userId, params.id, auth.accessToken, limit);
+    return success(queries);
+  }, {
+    params: t.Object({ id: t.String() }),
+  })
+
   /* Create saved query */
   .post('/:id/queries', async ({ auth, params, body }) => {
     const query = await projectService.createQuery(auth.userId, {

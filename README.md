@@ -1,10 +1,30 @@
 # Bubble Catcher
 
+![Version](https://img.shields.io/badge/version-1.0.0-blueviolet)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Runtime](https://img.shields.io/badge/runtime-Bun-f472b6)
+![Frontend](https://img.shields.io/badge/frontend-SvelteKit%205-ff3e00)
+
 **By Sxnnyside Project**
 
 Bubble Catcher is an educational SQL analysis and sandboxed execution platform. It parses SQL queries, detects inefficiencies and unsafe patterns through a rule-based static analysis engine, suggests safer rewrites, and executes queries inside ephemeral Docker containers isolated from the host system.
 
 Designed for students, educators, and developers who want to learn SQL by writing it, seeing what it does, and understanding what could go wrong -- without risk.
+
+---
+
+## Version 1.0.0 Highlights
+
+- **Secure sandbox execution** -- Ephemeral Docker containers with network isolation, memory/CPU limits, and capability dropping
+- **Plan-based rule system** -- Free and Premium analysis tiers with gated advanced rules
+- **Advanced telemetry** -- Per-user execution metrics, dialect usage tracking, and success rate monitoring
+- **Theme system** -- Light, Dark, and Vibrant themes with persistent user preferences
+- **Saved query reuse** -- Save, search, and reinsert queries across projects
+- **Structured error handling** -- Consistent HTTP error codes with i18n error messages
+- **Security hardening** -- IP rate limiting, query guard, CORS validation, execution audit trail
+- **Observability metrics** -- Structured JSON logging, request context propagation, telemetry dashboard
+- **Icon system** -- Theme-aware favicons with PWA compatibility
+- **Internationalization** -- Full English and Spanish support
 
 ---
 
@@ -254,6 +274,10 @@ The rule engine performs AST-based static analysis on SQL queries before executi
 ---
 
 ## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the full development roadmap with pass-by-pass progress.
+
+**Upcoming:**
 
 - Oracle dialect support (enterprise plan).
 - Custom seed data upload per project.

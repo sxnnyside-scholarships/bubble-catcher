@@ -20,7 +20,13 @@ export const executionRoutes = new Elysia({ prefix: '/execution' })
   }, {
     body: t.Object({
       sql: t.String({ minLength: 1 }),
-      dialect: t.String({ minLength: 1 }),
+      dialect: t.Union([
+        t.Literal('mysql'),
+        t.Literal('mariadb'),
+        t.Literal('postgresql'),
+        t.Literal('sqlite'),
+        t.Literal('mssql'),
+      ]),
       projectId: t.String({ minLength: 1 }),
     }),
   })

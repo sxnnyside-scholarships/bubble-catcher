@@ -12,6 +12,8 @@ export interface AuthContext {
  * Authentication middleware that validates Supabase JWT tokens.
  * Extracts user info and attaches to request context.
  *
+ * **All auth failures return 401 — never 500.**
+ *
  * NOTE: .as('plugin') is required so derive/beforeHandle hooks propagate
  * to routes in the *parent* plugin that calls .use(authMiddleware).
  * Without it, Elysia >=1.1 treats plugin hooks as local-only and they
@@ -21,36 +23,43 @@ export const authMiddleware = new Elysia({ name: 'auth' })
   .derive(async ({ headers }): Promise<{ auth: AuthContext }> => {
     const authHeader = headers['authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new AppError('UNAUTHORIZED', 'Missing or invalid authorization header', 401);
+      throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
     }
 
     const token = authHeader.slice(7).trim();
     if (!token) {
-      throw new AppError('UNAUTHORIZED', 'Empty token', 401);
+      throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
     }
 
     // Defensive: validate JWT structure before sending to Supabase
     const jwtParts = token.split('.');
     if (jwtParts.length !== 3 || jwtParts.some((p) => p.length === 0)) {
-      throw new AppError('UNAUTHORIZED', 'Malformed token', 401);
+      throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
     }
 
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    try {
+      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
 
-    if (error || !user) {
-      throw new AppError('UNAUTHORIZED', 'Invalid or expired token', 401);
+      if (error || !user) {
+        throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
+      }
+
+      if (!user.email) {
+        throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
+      }
+
+      return {
+        auth: {
+          userId: user.id,
+          email: user.email,
+          accessToken: token,
+        },
+      };
+    } catch (err) {
+      /* Re-throw AppError as-is; convert any unexpected Supabase/network error to 401 */
+      if (err instanceof AppError) throw err;
+      const msg = err instanceof Error ? err.message : 'Authentication failed';
+      throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401, { reason: msg });
     }
-
-    if (!user.email) {
-      throw new AppError('UNAUTHORIZED', 'User email not available', 401);
-    }
-
-    return {
-      auth: {
-        userId: user.id,
-        email: user.email,
-        accessToken: token,
-      },
-    };
   })
   .as('plugin');

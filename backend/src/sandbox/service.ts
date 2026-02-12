@@ -20,25 +20,23 @@ export class SandboxService {
     }
   }
 
-  async execute(sql: string, dialect: string): Promise<ExecutionResult> {
+  async execute(sql: string, dialect: string, timeoutMs?: number): Promise<ExecutionResult> {
     if (isEnterpriseDialect(dialect)) {
-      throw AppError.forbidden(
-        `${dialect} execution is available on the Enterprise plan only. This feature is coming soon.`,
-      );
+      throw AppError.forbidden('ENTERPRISE_REQUIRED', { dialect });
     }
 
     if (!isSupportedDialect(dialect)) {
-      throw AppError.badRequest(`Unsupported dialect: ${dialect}`);
+      throw AppError.badRequest('UNSUPPORTED_DIALECT', { dialect });
     }
 
     const executor = this.executors.get(dialect);
     if (!executor) {
-      throw AppError.internal(`No executor registered for dialect: ${dialect}`);
+      throw AppError.internal('INTERNAL_ERROR', { dialect });
     }
 
     return executor.execute(
       sql,
-      config.sandboxTimeoutMs,
+      timeoutMs ?? config.sandboxTimeoutMs,
       config.sandboxMemoryLimit,
     );
   }

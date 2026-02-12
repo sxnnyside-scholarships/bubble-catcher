@@ -1,22 +1,24 @@
 export type ExecutionStatus = 'success' | 'error' | 'timeout' | 'killed';
 
-export interface ExecutionColumn {
-  name: string;
-  type: string;
+export interface ExecutionError {
+  message: string;
+  code?: string;
 }
 
-export interface ExecutionResultData {
-  columns: ExecutionColumn[];
-  rows: Record<string, unknown>[];
-  rowCount: number;
-  executionTimeMs: number;
-}
-
+/**
+ * Normalized execution response.
+ * This is the contract returned to the frontend — never raw CLI output.
+ */
 export interface ExecutionResult {
+  success: boolean;
   status: ExecutionStatus;
-  data: ExecutionResultData | null;
-  error: string | null;
-  containerId: string;
+  columns?: string[];
+  rows?: unknown[][];
+  rowCount?: number;
+  executionTimeMs: number;
+  error?: ExecutionError;
+  /** Internal — not relied upon by frontend */
+  containerId?: string;
   executedAt: string;
 }
 

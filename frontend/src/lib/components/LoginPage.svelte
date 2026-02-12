@@ -1,6 +1,8 @@
 <script lang="ts">
   import { supabase } from '$lib/supabase';
   import { t } from '$lib/i18n';
+  import ThemeIcon from '$lib/components/ThemeIcon.svelte';
+
 
   let email = $state('');
   let password = $state('');
@@ -39,12 +41,8 @@
   <div class="w-full max-w-md">
     <!-- Logo & Branding -->
     <div class="mb-8 text-center">
-      <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary">
-        <svg class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="8" r="5" />
-          <circle cx="12" cy="8" r="2" fill="currentColor" opacity="0.3" />
-          <path d="M12 13v4m0 0l-2 2m2-2l2 2" />
-        </svg>
+      <div class="mb-4 inline-flex h-34 w-34 items-center justify-center">
+        <ThemeIcon size={120} />
       </div>
       <h1 class="text-3xl font-bold gradient-primary-text">{$t.common.appName}</h1>
       <p class="mt-1 text-sm text-[var(--color-text-tertiary)]">{$t.common.byLine}</p>

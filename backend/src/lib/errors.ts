@@ -3,37 +3,42 @@ export class AppError extends Error {
     public readonly code: string,
     message: string,
     public readonly statusCode: number = 400,
-    public readonly details?: unknown,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'AppError';
   }
 
-  static badRequest(message: string, code = 'BAD_REQUEST') {
-    return new AppError(code, message, 400);
+  static badRequest(code = 'BAD_REQUEST', details?: Record<string, unknown>) {
+    return new AppError(code, code, 400, details);
   }
 
-  static unauthorized(message = 'Authentication required') {
-    return new AppError('UNAUTHORIZED', message, 401);
+  static unauthorized(code = 'UNAUTHORIZED') {
+    return new AppError(code, code, 401);
   }
 
-  static forbidden(message = 'Access denied') {
-    return new AppError('FORBIDDEN', message, 403);
+  static forbidden(code = 'FORBIDDEN', details?: Record<string, unknown>) {
+    return new AppError(code, code, 403, details);
   }
 
-  static notFound(message = 'Resource not found') {
-    return new AppError('NOT_FOUND', message, 404);
+  static notFound(code = 'NOT_FOUND') {
+    return new AppError(code, code, 404);
   }
 
-  static conflict(message: string) {
-    return new AppError('CONFLICT', message, 409);
+  static conflict(code = 'CONFLICT', details?: Record<string, unknown>) {
+    return new AppError(code, code, 409, details);
   }
 
-  static limitReached(message: string) {
-    return new AppError('LIMIT_REACHED', message, 429);
+  static limitReached(code = 'LIMIT_REACHED', details?: Record<string, unknown>) {
+    return new AppError(code, code, 429, details);
   }
 
-  static internal(message = 'Internal server error') {
-    return new AppError('INTERNAL_ERROR', message, 500);
+  /** 422 — blocked query or semantic error */
+  static unprocessable(code = 'UNPROCESSABLE', details?: Record<string, unknown>) {
+    return new AppError(code, code, 422, details);
+  }
+
+  static internal(code = 'INTERNAL_ERROR', details?: Record<string, unknown>) {
+    return new AppError(code, code, 500, details);
   }
 }

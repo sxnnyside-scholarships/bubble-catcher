@@ -1,11 +1,61 @@
 import Docker from 'dockerode';
-import type { ExecutionResult, ExecutionColumn } from '@shared/types';
+import type { ExecutionResult } from '@shared/types';
 import type { SupportedDialect } from '@shared/types';
 import type { SandboxExecutor } from './executor.interface';
 
-const docker = new Docker();
+/**
+ * Resolve Docker socket path.
+ * Docker Desktop on macOS uses ~/Library/Containers/… or ~/.docker/run/docker.sock.
+ * Falls back to /var/run/docker.sock on Linux.
+ */
+function resolveDockerSocket(): string {
+  const fromEnv = process.env['DOCKER_HOST'];
+  if (fromEnv) return fromEnv.replace('unix://', '');
+
+  const candidates = [
+    `${process.env['HOME']}/.docker/run/docker.sock`,
+    '/var/run/docker.sock',
+  ];
+  return candidates[0]; // dockerode resolves symlinks internally
+}
+
+const docker = new Docker({ socketPath: resolveDockerSocket() });
+
+/** Cache Docker availability to avoid checking every request */
+let dockerAvailable: boolean | null = null;
+let dockerCheckTime = 0;
+const DOCKER_CHECK_TTL_MS = 30_000; // re-check every 30s
+
+async function checkDockerAvailable(): Promise<boolean> {
+  const now = Date.now();
+  if (dockerAvailable !== null && now - dockerCheckTime < DOCKER_CHECK_TTL_MS) {
+    return dockerAvailable;
+  }
+  try {
+    await docker.ping();
+    dockerAvailable = true;
+  } catch {
+    dockerAvailable = false;
+  }
+  dockerCheckTime = now;
+  return dockerAvailable;
+}
+
+async function checkImageExists(imageName: string): Promise<boolean> {
+  try {
+    await docker.getImage(imageName).inspect();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /* ───────────────────────── Dialect configuration ───────────────────────── */
+
+interface ParsedOutput {
+  columns: string[];
+  rows: unknown[][];
+}
 
 interface DialectConfig {
   image: string;
@@ -30,7 +80,7 @@ interface DialectConfig {
   /** Additional tmpfs mounts required by the engine */
   tmpfs?: Record<string, string>;
   /** Parse raw CLI output into structured columns + rows */
-  parseOutput: (stdout: string) => { columns: ExecutionColumn[]; rows: Record<string, unknown>[] };
+  parseOutput: (stdout: string) => ParsedOutput;
 }
 
 const DIALECT_CONFIGS: Record<SupportedDialect, DialectConfig> = {
@@ -127,40 +177,32 @@ const DIALECT_CONFIGS: Record<SupportedDialect, DialectConfig> = {
 
 /* ───────────────────────── Output parsers ───────────────────────────── */
 
-function parseTsvOutput(stdout: string): { columns: ExecutionColumn[]; rows: Record<string, unknown>[] } {
+function parseTsvOutput(stdout: string): ParsedOutput {
   const lines = stdout.trim().split('\n').filter(Boolean);
   if (lines.length === 0) return { columns: [], rows: [] };
 
-  const headers = lines[0].split('\t');
-  const columns: ExecutionColumn[] = headers.map((h) => ({ name: h.trim(), type: 'text' }));
-  const rows = lines.slice(1).map((line) => {
+  const headers = lines[0].split('\t').map((h) => h.trim());
+  const columns = headers;
+  const rows: unknown[][] = lines.slice(1).map((line) => {
     const values = line.split('\t');
-    const row: Record<string, unknown> = {};
-    headers.forEach((header, i) => {
-      row[header.trim()] = values[i]?.trim() ?? null;
-    });
-    return row;
+    return headers.map((_, i) => values[i]?.trim() ?? null);
   });
 
   return { columns, rows };
 }
 
-function parseMssqlOutput(stdout: string): { columns: ExecutionColumn[]; rows: Record<string, unknown>[] } {
+function parseMssqlOutput(stdout: string): ParsedOutput {
   const lines = stdout.trim().split('\n').filter(Boolean);
   if (lines.length < 2) return { columns: [], rows: [] };
 
   /* MSSQL output: header row, separator row (---), then data rows, then (N rows affected) */
   const headers = lines[0].split('\t').map((h) => h.trim());
-  const columns: ExecutionColumn[] = headers.map((h) => ({ name: h, type: 'text' }));
+  const columns = headers;
 
   const dataLines = lines.slice(2).filter((line) => !line.match(/^\(\d+ rows? affected\)$/));
-  const rows = dataLines.map((line) => {
+  const rows: unknown[][] = dataLines.map((line) => {
     const values = line.split('\t');
-    const row: Record<string, unknown> = {};
-    headers.forEach((header, i) => {
-      row[header] = values[i]?.trim() ?? null;
-    });
-    return row;
+    return headers.map((_, i) => values[i]?.trim() ?? null);
   });
 
   return { columns, rows };
@@ -195,6 +237,36 @@ export class DockerSandboxExecutor implements SandboxExecutor {
   async execute(sql: string, timeoutMs: number, memoryLimit: string): Promise<ExecutionResult> {
     const startTime = Date.now();
 
+    /* ── Pre-flight: Docker daemon reachable? ──────────────────── */
+    const dockerOk = await checkDockerAvailable();
+    if (!dockerOk) {
+      return {
+        success: false,
+        status: 'error',
+        executionTimeMs: Date.now() - startTime,
+        error: {
+          message: `[${this.dialect}] Docker is not running. Start Docker Desktop and try again.`,
+          code: 'DOCKER_UNAVAILABLE',
+        },
+        executedAt: new Date().toISOString(),
+      };
+    }
+
+    /* ── Pre-flight: image exists? ─────────────────────────────── */
+    const imageOk = await checkImageExists(this.config.image);
+    if (!imageOk) {
+      return {
+        success: false,
+        status: 'error',
+        executionTimeMs: Date.now() - startTime,
+        error: {
+          message: `[${this.dialect}] Docker image '${this.config.image}' not found. Run: cd docker && ./build-images.sh`,
+          code: 'IMAGE_NOT_FOUND',
+        },
+        executedAt: new Date().toISOString(),
+      };
+    }
+
     try {
       if (this.config.serverBased) {
         return await this.executeServerBased(sql, timeoutMs, memoryLimit, startTime);
@@ -202,11 +274,27 @@ export class DockerSandboxExecutor implements SandboxExecutor {
       return await this.executeNonServer(sql, timeoutMs, memoryLimit, startTime);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      /* Classify the error */
+      const isDockerError = message.includes('connect ENOENT') ||
+        message.includes('connect ECONNREFUSED') ||
+        message.includes('socket hang up') ||
+        message.includes('Was there a typo');
+
+      const code = isDockerError ? 'DOCKER_UNAVAILABLE' : 'SANDBOX_ERROR';
+      const userMessage = isDockerError
+        ? `[${this.dialect}] Docker is not running. Start Docker Desktop and try again.`
+        : `[${this.dialect}] Sandbox execution failed: ${message}`;
+
+      /* Invalidate Docker check cache on connection errors */
+      if (isDockerError) dockerAvailable = null;
+
+      console.error(`[DockerSandboxExecutor] ${this.dialect} execution failed:`, message);
+
       return {
+        success: false,
         status: 'error',
-        data: null,
-        error: `Sandbox execution failed: ${message}`,
-        containerId: 'unknown',
+        executionTimeMs: Date.now() - startTime,
+        error: { message: userMessage, code },
         executedAt: new Date().toISOString(),
       };
     }
@@ -254,9 +342,10 @@ export class DockerSandboxExecutor implements SandboxExecutor {
         await this.forceRemoveContainer(container);
         container = null;
         return {
+          success: false,
           status: 'timeout',
-          data: null,
-          error: `Query execution exceeded ${timeoutMs}ms timeout`,
+          executionTimeMs,
+          error: { message: `[${this.dialect}] Query execution exceeded ${timeoutMs}ms timeout`, code: 'QUERY_TIMEOUT' },
           containerId: cid,
           executedAt: new Date().toISOString(),
         };
@@ -265,26 +354,24 @@ export class DockerSandboxExecutor implements SandboxExecutor {
       const { stdout, stderr, exitCode } = result as ContainerExitResult;
 
       if (exitCode !== 0 || stderr) {
-        const cid = container.id;
         return {
+          success: false,
           status: 'error',
-          data: null,
-          error: stderr || `Process exited with code ${exitCode}`,
-          containerId: cid,
+          executionTimeMs,
+          error: { message: `[${this.dialect}] ${stderr || `Process exited with code ${exitCode}`}`, code: exitCode !== 0 ? `EXIT_${exitCode}` : 'SQL_ERROR' },
+          containerId: container.id,
           executedAt: new Date().toISOString(),
         };
       }
 
       const parsed = this.config.parseOutput(stdout);
       return {
+        success: true,
         status: 'success',
-        data: {
-          columns: parsed.columns,
-          rows: parsed.rows,
-          rowCount: parsed.rows.length,
-          executionTimeMs,
-        },
-        error: null,
+        columns: parsed.columns,
+        rows: parsed.rows,
+        rowCount: parsed.rows.length,
+        executionTimeMs,
         containerId: container.id,
         executedAt: new Date().toISOString(),
       };
@@ -331,9 +418,10 @@ export class DockerSandboxExecutor implements SandboxExecutor {
         await this.forceRemoveContainer(container);
         container = null;
         return {
+          success: false,
           status: 'error',
-          data: null,
-          error: `Database server failed to become ready within ${this.config.readinessTimeoutSec}s`,
+          executionTimeMs: Date.now() - startTime,
+          error: { message: `[${this.dialect}] Database server failed to become ready within ${this.config.readinessTimeoutSec}s`, code: 'DB_NOT_READY' },
           containerId: cid,
           executedAt: new Date().toISOString(),
         };
@@ -354,9 +442,10 @@ export class DockerSandboxExecutor implements SandboxExecutor {
         await this.forceRemoveContainer(container);
         container = null;
         return {
+          success: false,
           status: 'timeout',
-          data: null,
-          error: `Query execution exceeded ${timeoutMs}ms timeout`,
+          executionTimeMs,
+          error: { message: `[${this.dialect}] Query execution exceeded ${timeoutMs}ms timeout`, code: 'QUERY_TIMEOUT' },
           containerId: cid,
           executedAt: new Date().toISOString(),
         };
@@ -369,9 +458,10 @@ export class DockerSandboxExecutor implements SandboxExecutor {
 
       if (exitCode !== 0 || cleanStderr) {
         return {
+          success: false,
           status: 'error',
-          data: null,
-          error: cleanStderr || `Command exited with code ${exitCode}`,
+          executionTimeMs,
+          error: { message: `[${this.dialect}] ${cleanStderr || `Command exited with code ${exitCode}`}`, code: exitCode !== 0 ? `EXIT_${exitCode}` : 'SQL_ERROR' },
           containerId: container.id,
           executedAt: new Date().toISOString(),
         };
@@ -379,14 +469,12 @@ export class DockerSandboxExecutor implements SandboxExecutor {
 
       const parsed = this.config.parseOutput(stdout);
       return {
+        success: true,
         status: 'success',
-        data: {
-          columns: parsed.columns,
-          rows: parsed.rows,
-          rowCount: parsed.rows.length,
-          executionTimeMs,
-        },
-        error: null,
+        columns: parsed.columns,
+        rows: parsed.rows,
+        rowCount: parsed.rows.length,
+        executionTimeMs,
         containerId: container.id,
         executedAt: new Date().toISOString(),
       };
@@ -530,6 +618,9 @@ export class DockerSandboxExecutor implements SandboxExecutor {
         if (l.includes('Using a password on the command line interface can be insecure')) return false;
         /* MariaDB password warning */
         if (l.includes('password on the command line')) return false;
+        /* MSSQL sqlcmd informational messages */
+        if (l.startsWith('Changed database context to')) return false;
+        if (l.match(/^\(\d+ rows? affected\)$/)) return false;
         return true;
       })
       .join('\n')

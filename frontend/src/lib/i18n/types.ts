@@ -6,6 +6,11 @@ export interface PricingPlan {
   cta: string;
 }
 
+export interface RuleTranslation {
+  message: string;
+  explanation: string;
+}
+
 export interface Translations {
   common: {
     appName: string;
@@ -53,6 +58,9 @@ export interface Translations {
     totalProjects: string;
     totalQueries: string;
     totalExecutions: string;
+    avgExecutionTime: string;
+    successRate: string;
+    dialectUsage: string;
   };
   projects: {
     title: string;
@@ -75,6 +83,9 @@ export interface Translations {
     saveQuery: string;
     queryTitle: string;
     placeholder: string;
+    recentQueries: string;
+    searchQueries: string;
+    viewAll: string;
   };
   analysis: {
     title: string;
@@ -87,7 +98,13 @@ export interface Translations {
       critical: string;
     };
     suggestedRewrite: string;
+    copyRewrite: string;
+    copiedRewrite: string;
+    insertRewrite: string;
     explanation: string;
+    premiumRules: string;
+    premiumBadge: string;
+    upgradeCta: string;
   };
   execution: {
     title: string;
@@ -95,6 +112,7 @@ export interface Translations {
     success: string;
     error: string;
     timeout: string;
+    killed: string;
     rows: string;
     columns: string;
     executionTime: string;
@@ -119,6 +137,16 @@ export interface Translations {
     languageEs: string;
     account: string;
     plan: string;
+    supportCommunity: string;
+    supportCommunityDesc: string;
+    followPatreon: string;
+    reportBug: string;
+    requestSupport: string;
+    premiumOnly: string;
+    premiumUpgradeHint: string;
+    legal: string;
+    privacyPolicy: string;
+    termsConditions: string;
   };
   dialects: {
     mysql: string;
@@ -127,5 +155,11 @@ export interface Translations {
     sqlite: string;
     mssql: string;
     oracle: string;
+  };
+  errors: {
+    [code: string]: string;
+  };
+  rules: {
+    [ruleId: string]: RuleTranslation;
   };
 }

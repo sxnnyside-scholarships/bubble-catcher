@@ -47,6 +47,9 @@ export const es: Translations = {
     totalProjects: 'Total de Proyectos',
     totalQueries: 'Consultas Analizadas',
     totalExecutions: 'Ejecuciones',
+    avgExecutionTime: 'Tiempo Promedio de Ejecución',
+    successRate: 'Tasa de Éxito',
+    dialectUsage: 'Uso por Dialecto',
   },
   projects: {
     title: 'Proyectos',
@@ -69,6 +72,9 @@ export const es: Translations = {
     saveQuery: 'Guardar Consulta',
     queryTitle: 'Título de la Consulta',
     placeholder: '-- Escribe tu consulta SQL aquí\nSELECT * FROM usuarios;',
+    recentQueries: 'Recientes',
+    searchQueries: 'Buscar consultas guardadas…',
+    viewAll: 'Ver Todas',
   },
   analysis: {
     title: 'Resultados del Análisis',
@@ -81,7 +87,13 @@ export const es: Translations = {
       critical: 'Crítico',
     },
     suggestedRewrite: 'Reescritura Sugerida',
+    copyRewrite: 'Copiar',
+    copiedRewrite: '¡Copiado!',
+    insertRewrite: 'Insertar en el editor',
     explanation: 'Por qué es importante',
+    premiumRules: 'Reglas Premium',
+    premiumBadge: 'Premium',
+    upgradeCta: 'Actualiza para desbloquear reglas de análisis avanzadas',
   },
   execution: {
     title: 'Resultados de Ejecución',
@@ -89,6 +101,7 @@ export const es: Translations = {
     success: 'Consulta ejecutada exitosamente',
     error: 'La ejecución falló',
     timeout: 'La consulta excedió el tiempo límite',
+    killed: 'La consulta fue terminada',
     rows: 'filas',
     columns: 'columnas',
     executionTime: 'Tiempo de ejecución',
@@ -150,6 +163,16 @@ export const es: Translations = {
     languageEs: 'Español',
     account: 'Cuenta',
     plan: 'Plan Actual',
+    supportCommunity: 'Soporte y Comunidad',
+    supportCommunityDesc: 'Obtén ayuda, reporta errores o apoya el proyecto.',
+    followPatreon: 'Síguenos en Patreon',
+    reportBug: 'Reportar un Error',
+    requestSupport: 'Solicitar Soporte',
+    premiumOnly: 'Premium',
+    premiumUpgradeHint: 'Actualiza a Premium para acceder a soporte prioritario.',
+    legal: 'Legal',
+    privacyPolicy: 'Política de Privacidad',
+    termsConditions: 'Términos y Condiciones',
   },
   dialects: {
     mysql: 'MySQL',
@@ -158,5 +181,100 @@ export const es: Translations = {
     sqlite: 'SQLite',
     mssql: 'MSSQL',
     oracle: 'Oracle (Enterprise)',
+  },
+  errors: {
+    BAD_REQUEST: 'Solicitud inválida.',
+    UNAUTHORIZED: 'Autenticación requerida. Por favor, inicia sesión.',
+    FORBIDDEN: 'Acceso denegado.',
+    NOT_FOUND: 'El recurso solicitado no fue encontrado.',
+    CONFLICT: 'Ocurrió un conflicto.',
+    LIMIT_REACHED: 'Límite alcanzado. Por favor, mejora tu plan.',
+    VALIDATION_ERROR: 'Datos de solicitud inválidos.',
+    INTERNAL_ERROR: 'Ocurrió un error inesperado. Por favor, intenta de nuevo.',
+    QUERY_TOO_LONG: 'La consulta excede la longitud máxima permitida para tu plan.',
+    QUERY_LENGTH_EXCEEDED: 'La consulta excede la longitud máxima permitida para tu plan.',
+    QUERY_TOO_EXPENSIVE: 'Este patrón de consulta no está permitido en la ejecución sandbox.',
+    RATE_LIMIT_EXCEEDED: 'Demasiadas solicitudes. Por favor, espera un momento.',
+    UNSUPPORTED_DIALECT: 'Dialecto SQL no soportado.',
+    ENTERPRISE_REQUIRED: 'Esta función requiere un plan Enterprise.',
+    EMPTY_QUERY: 'La consulta SQL no puede estar vacía.',
+    PROJECT_LIMIT: 'Has alcanzado el número máximo de proyectos para tu plan.',
+    DOCKER_UNAVAILABLE: 'Docker no está en ejecución. Inicia Docker Desktop e intenta de nuevo.',
+    IMAGE_NOT_FOUND: 'NO se encontró la imagen Docker del sandbox. Ejecuta el script de construcción primero.',
+  },
+  rules: {
+    'select-star': {
+      message: 'Evita usar SELECT *',
+      explanation: 'SELECT * recupera todas las columnas de la tabla, lo que puede causar transferencia de datos innecesaria, consultas más lentas y código frágil que se rompe con cambios de esquema. En su lugar, lista explícitamente solo las columnas que necesitas.',
+    },
+    'missing-where': {
+      message: 'DELETE / UPDATE sin cláusula WHERE afectará TODAS las filas',
+      explanation: 'Ejecutar esta sentencia sin WHERE afectará permanentemente cada fila de la tabla. Esto casi nunca es intencional. Siempre incluye una cláusula WHERE para apuntar a filas específicas.',
+    },
+    'cartesian-join': {
+      message: 'Posible producto cartesiano detectado',
+      explanation: 'Cuando múltiples tablas se listan en FROM sin condiciones de JOIN, la base de datos produce un producto cartesiano — cada fila de una tabla se combina con cada fila de la otra. Usa la sintaxis JOIN explícita con condiciones ON.',
+    },
+    'subquery-optimization': {
+      message: 'La subconsulta podría reescribirse como un JOIN',
+      explanation: 'Las subconsultas en cláusulas IN o EXISTS pueden ser menos eficientes que operaciones JOIN equivalentes. El optimizador puede ejecutar la subconsulta una vez por fila. Un JOIN permite elegir un plan de ejecución más eficiente.',
+    },
+    'unsafe-pattern': {
+      message: 'Operación SQL potencialmente peligrosa detectada',
+      explanation: 'Esta sentencia realiza una operación destructiva o peligrosa. Asegúrate de tener respaldos y verifica que sea intencional antes de ejecutar en producción.',
+    },
+    'order-without-limit': {
+      message: 'ORDER BY sin LIMIT puede ordenar toda la tabla innecesariamente',
+      explanation: 'Cuando ORDER BY se usa sin LIMIT, la base de datos debe ordenar cada fila del resultado. Para tablas grandes esto puede ser extremadamente costoso. Agrega LIMIT si solo necesitas los primeros/últimos N registros.',
+    },
+    'leading-wildcard': {
+      message: 'LIKE con comodín inicial impide el uso de índices',
+      explanation: 'Un patrón LIKE que comienza con % obliga a la base de datos a escanear cada fila porque el índice no puede usarse para coincidencia de prefijo. Considera búsqueda de texto completo o reestructurar la consulta.',
+    },
+    'group-by-inconsistency': {
+      message: 'Columna en SELECT no está en GROUP BY ni está agregada',
+      explanation: 'En SQL estándar, cada columna en SELECT debe aparecer en GROUP BY o usarse dentro de una función agregada. Las columnas no agrupadas producen comportamiento indefinido y generan errores en modo estricto.',
+    },
+    'broad-time-condition': {
+      message: 'Condición de rango amplio en columna de tiempo puede afectar muchas filas',
+      explanation: 'Un DELETE o UPDATE con comparación de rango en una columna de fecha/hora puede afectar un número muy grande de filas. Considera acotar el rango o ejecutar un SELECT primero para verificar las filas afectadas.',
+    },
+    'join-on-non-id': {
+      message: 'La condición JOIN usa columnas que no son claves',
+      explanation: 'Unir tablas por columnas que no son claves primarias o foráneas puede ser intencional, pero frecuentemente es un error que produce multiplicación inesperada de filas o bajo rendimiento. Verifica que la condición de unión sea correcta.',
+    },
+    'contradictory-conditions': {
+      message: 'Condiciones AND contradictorias siempre devolverán cero filas',
+      explanation: 'Una columna no puede ser igual a dos valores literales diferentes simultáneamente cuando las condiciones están unidas por AND. Si querías coincidir con alguno de estos valores, usa OR o IN(...) en su lugar.',
+    },
+    'parse-error': {
+      message: 'Error al analizar la consulta SQL',
+      explanation: 'La consulta no pudo ser analizada. Verifica errores de sintaxis o construcciones SQL no soportadas para el dialecto seleccionado.',
+    },
+    /* Reglas Premium */
+    'missing-index-hint': {
+      message: 'La consulta podría beneficiarse de un índice',
+      explanation: 'Esta consulta filtra o une por columnas que típicamente no están indexadas por defecto. Agregar un índice en las columnas filtradas puede mejorar dramáticamente el rendimiento en tablas grandes.',
+    },
+    'select-distinct-misuse': {
+      message: 'SELECT DISTINCT puede enmascarar un problema de JOIN o lógica',
+      explanation: 'DISTINCT a veces se usa para ocultar filas duplicadas causadas por JOINs incorrectos. Verifica que las condiciones de JOIN sean correctas antes de depender de DISTINCT para eliminar duplicados.',
+    },
+    'unbounded-in-list': {
+      message: 'Cláusula IN con muchos valores puede causar problemas de rendimiento',
+      explanation: 'Listas IN (...) grandes pueden sobrecargar el optimizador de consultas. Considera usar una tabla temporal, un JOIN, o dividir los valores en lotes para mejor rendimiento.',
+    },
+    'n-plus-one-pattern': {
+      message: 'Posible patrón de consulta N+1 detectado',
+      explanation: 'Una subconsulta correlacionada en la lista SELECT se ejecuta una vez por cada fila de la consulta externa, lo que puede causar problemas severos de rendimiento (problema N+1). Considera reescribir como JOIN.',
+    },
+    'count-without-where': {
+      message: 'COUNT(*) sin WHERE escanea toda la tabla',
+      explanation: 'Ejecutar COUNT(*) sin WHERE obliga a un escaneo completo de la tabla. En tablas grandes esto puede ser muy lento. Agrega WHERE o usa conteos aproximados si no se requieren cifras exactas.',
+    },
+    'implicit-type-conversion': {
+      message: 'La conversión implícita de tipo puede impedir el uso de índices',
+      explanation: 'Comparar una columna con un valor de tipo diferente (por ejemplo, una columna string comparada con un número) causa conversión implícita, lo que impide el uso de índices y fuerza un escaneo completo.',
+    },
   },
 };

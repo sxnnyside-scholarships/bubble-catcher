@@ -24,7 +24,7 @@ export const ensureProfileMiddleware = new Elysia({ name: 'ensure-profile' })
     // If error occurred (but not "no rows"), throw
     if (selectError && selectError.code !== 'PGRST116') {
       console.error('[EnsureProfile] Error checking profile:', selectError);
-      throw AppError.internal('Failed to verify user profile');
+      throw AppError.internal('INTERNAL_ERROR');
     }
 
     // If profile doesn't exist, create it
@@ -45,7 +45,7 @@ export const ensureProfileMiddleware = new Elysia({ name: 'ensure-profile' })
           console.log('[EnsureProfile] Profile already exists (race condition)');
         } else {
           console.error('[EnsureProfile] Failed to create profile:', insertError);
-          throw AppError.internal('Failed to initialize user profile');
+          throw AppError.internal('INTERNAL_ERROR');
         }
       } else {
         console.log(`[EnsureProfile] Created profile for user ${auth.userId}`);

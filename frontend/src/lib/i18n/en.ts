@@ -47,6 +47,9 @@ export const en: Translations = {
     totalProjects: 'Total Projects',
     totalQueries: 'Queries Analyzed',
     totalExecutions: 'Executions',
+    avgExecutionTime: 'Avg Execution Time',
+    successRate: 'Success Rate',
+    dialectUsage: 'Dialect Usage',
   },
   projects: {
     title: 'Projects',
@@ -69,6 +72,9 @@ export const en: Translations = {
     saveQuery: 'Save Query',
     queryTitle: 'Query Title',
     placeholder: '-- Write your SQL query here\nSELECT * FROM users;',
+    recentQueries: 'Recent',
+    searchQueries: 'Search saved queries…',
+    viewAll: 'View All',
   },
   analysis: {
     title: 'Analysis Results',
@@ -81,7 +87,13 @@ export const en: Translations = {
       critical: 'Critical',
     },
     suggestedRewrite: 'Suggested Rewrite',
+    copyRewrite: 'Copy',
+    copiedRewrite: 'Copied!',
+    insertRewrite: 'Insert into editor',
     explanation: 'Why this matters',
+    premiumRules: 'Premium Rules',
+    premiumBadge: 'Premium',
+    upgradeCta: 'Upgrade to unlock advanced analysis rules',
   },
   execution: {
     title: 'Execution Results',
@@ -89,6 +101,7 @@ export const en: Translations = {
     success: 'Query executed successfully',
     error: 'Execution failed',
     timeout: 'Query timed out',
+    killed: 'Query was terminated',
     rows: 'rows',
     columns: 'columns',
     executionTime: 'Execution time',
@@ -150,6 +163,16 @@ export const en: Translations = {
     languageEs: 'Español',
     account: 'Account',
     plan: 'Current Plan',
+    supportCommunity: 'Support & Community',
+    supportCommunityDesc: 'Get help, report issues, or support the project.',
+    followPatreon: 'Follow us on Patreon',
+    reportBug: 'Report a Bug',
+    requestSupport: 'Request Support',
+    premiumOnly: 'Premium',
+    premiumUpgradeHint: 'Upgrade to Premium to access priority support.',
+    legal: 'Legal',
+    privacyPolicy: 'Privacy Policy',
+    termsConditions: 'Terms & Conditions',
   },
   dialects: {
     mysql: 'MySQL',
@@ -158,5 +181,100 @@ export const en: Translations = {
     sqlite: 'SQLite',
     mssql: 'MSSQL',
     oracle: 'Oracle (Enterprise)',
+  },
+  errors: {
+    BAD_REQUEST: 'Invalid request.',
+    UNAUTHORIZED: 'Authentication required. Please sign in.',
+    FORBIDDEN: 'Access denied.',
+    NOT_FOUND: 'The requested resource was not found.',
+    CONFLICT: 'A conflict occurred.',
+    LIMIT_REACHED: 'Limit reached. Please upgrade your plan.',
+    VALIDATION_ERROR: 'Invalid request data.',
+    INTERNAL_ERROR: 'An unexpected error occurred. Please try again.',
+    QUERY_TOO_LONG: 'Query exceeds the maximum allowed length for your plan.',
+    QUERY_LENGTH_EXCEEDED: 'Query exceeds the maximum allowed length for your plan.',
+    QUERY_TOO_EXPENSIVE: 'This query pattern is not allowed in sandbox execution.',
+    RATE_LIMIT_EXCEEDED: 'Too many requests. Please wait a moment.',
+    UNSUPPORTED_DIALECT: 'Unsupported SQL dialect.',
+    ENTERPRISE_REQUIRED: 'This feature requires an Enterprise plan.',
+    EMPTY_QUERY: 'SQL query cannot be empty.',
+    PROJECT_LIMIT: 'You have reached the maximum number of projects for your plan.',
+    DOCKER_UNAVAILABLE: 'Docker is not running. Start Docker Desktop and try again.',
+    IMAGE_NOT_FOUND: 'Docker sandbox image not found. Run the build script first.',
+  },
+  rules: {
+    'select-star': {
+      message: 'Avoid using SELECT *',
+      explanation: 'SELECT * retrieves all columns from the table, which can lead to unnecessary data transfer, slower queries, and fragile code that breaks when schema changes. Instead, explicitly list only the columns you need.',
+    },
+    'missing-where': {
+      message: 'DELETE / UPDATE without WHERE clause will affect ALL rows',
+      explanation: 'Running this statement without a WHERE clause will permanently affect every row in the table. This is almost never intentional. Always include a WHERE clause to target specific rows.',
+    },
+    'cartesian-join': {
+      message: 'Potential Cartesian join detected',
+      explanation: 'When multiple tables are listed in the FROM clause without JOIN conditions, the database produces a Cartesian product — every row from one table is combined with every row from the other. Use explicit JOIN syntax with ON conditions instead.',
+    },
+    'subquery-optimization': {
+      message: 'Subquery could potentially be rewritten as a JOIN',
+      explanation: 'Subqueries in IN or EXISTS clauses can be less efficient than equivalent JOIN operations. The optimizer may execute the subquery once per row. A JOIN allows the optimizer to choose a more efficient execution plan.',
+    },
+    'unsafe-pattern': {
+      message: 'Potentially dangerous SQL operation detected',
+      explanation: 'This statement performs a destructive or dangerous operation. Ensure you have backups and verify this is intentional before executing in production.',
+    },
+    'order-without-limit': {
+      message: 'ORDER BY without LIMIT may sort the entire table unnecessarily',
+      explanation: 'When ORDER BY is used without LIMIT, the database must sort every row in the result set. For large tables this can be extremely expensive. Add a LIMIT clause if you only need the top/bottom N rows.',
+    },
+    'leading-wildcard': {
+      message: 'LIKE with leading wildcard prevents index usage',
+      explanation: 'A LIKE pattern that starts with % forces the database to scan every row because the index cannot be used for prefix matching. Consider full-text search or restructuring the query.',
+    },
+    'group-by-inconsistency': {
+      message: 'Column in SELECT is not in GROUP BY and not aggregated',
+      explanation: 'In standard SQL, every column in the SELECT list must either appear in the GROUP BY clause or be used inside an aggregate function. Non-grouped columns produce undefined behavior and will raise errors in strict mode.',
+    },
+    'broad-time-condition': {
+      message: 'Broad range condition on time column may affect many rows',
+      explanation: 'A DELETE or UPDATE with a range comparison on a date/time column can unintentionally affect a very large number of rows. Consider narrowing the range or running a SELECT first to verify affected row count.',
+    },
+    'join-on-non-id': {
+      message: 'JOIN condition uses non-key columns',
+      explanation: 'Joining tables on columns that are not primary or foreign keys may be intentional, but is often a mistake that produces unexpected row multiplication or poor performance. Verify the join condition is correct.',
+    },
+    'contradictory-conditions': {
+      message: 'Contradictory AND conditions will always return zero rows',
+      explanation: 'A single column cannot simultaneously equal two different literal values when conditions are joined by AND. If you intended to match any of these values, use OR or IN(...) instead.',
+    },
+    'parse-error': {
+      message: 'Failed to parse SQL query',
+      explanation: 'The query could not be parsed. Check for syntax errors or unsupported SQL constructs for the selected dialect.',
+    },
+    /* Premium rules */
+    'missing-index-hint': {
+      message: 'Query may benefit from an index',
+      explanation: 'This query filters or joins on columns that are typically not indexed by default. Adding an index on the filtered columns can dramatically improve performance on large tables.',
+    },
+    'select-distinct-misuse': {
+      message: 'SELECT DISTINCT may mask a JOIN or logic issue',
+      explanation: 'DISTINCT is sometimes used to hide duplicate rows caused by incorrect JOINs. Verify that the JOIN conditions are correct before relying on DISTINCT to remove duplicates.',
+    },
+    'unbounded-in-list': {
+      message: 'IN clause with many values may cause performance issues',
+      explanation: 'Large IN (...) lists can overwhelm the query optimizer. Consider using a temporary table, a JOIN, or batching the values for better performance.',
+    },
+    'n-plus-one-pattern': {
+      message: 'Possible N+1 query pattern detected',
+      explanation: 'A correlated subquery in the SELECT list executes once per row in the outer query, which can cause severe performance issues (N+1 problem). Consider rewriting as a JOIN.',
+    },
+    'count-without-where': {
+      message: 'COUNT(*) without WHERE scans the entire table',
+      explanation: 'Running COUNT(*) without a WHERE clause forces a full table scan. On large tables this can be very slow. Add a WHERE clause or use approximate counts if exact numbers are not required.',
+    },
+    'implicit-type-conversion': {
+      message: 'Implicit type conversion may prevent index usage',
+      explanation: 'Comparing a column with a value of a different type (e.g., string column compared to a number) causes implicit conversion, which prevents index usage and forces a full scan.',
+    },
   },
 };

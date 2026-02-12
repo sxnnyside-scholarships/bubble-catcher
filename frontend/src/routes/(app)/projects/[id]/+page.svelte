@@ -3,10 +3,12 @@
   import { t } from '$lib/i18n';
   import { api } from '$lib/api';
   import { activeProject, session } from '$lib/stores';
-  import type { Project, AnalysisResult, ExecutionResult, ExecutionHistoryEntry } from '$shared/types';
+  import type { Project, SavedQuery, AnalysisResult, ExecutionResult, ExecutionHistoryEntry } from '$shared/types';
   import MonacoEditor from '$lib/components/MonacoEditor.svelte';
   import AnalysisPanel from '$lib/components/AnalysisPanel.svelte';
   import ExecutionPanel from '$lib/components/ExecutionPanel.svelte';
+  import SavedQueryChips from '$lib/components/SavedQueryChips.svelte';
+  import SavedQueryModal from '$lib/components/SavedQueryModal.svelte';
 
   let project = $state<Project | null>(null);
   let isLoading = $state(true);
@@ -21,8 +23,26 @@
   let executionHistory = $state<ExecutionHistoryEntry[]>([]);
   let activeTab = $state<'analysis' | 'execution' | 'history'>('analysis');
 
+  let recentQueries = $state<SavedQuery[]>([]);
+  let allQueries = $state<SavedQuery[]>([]);
+  let showQueryModal = $state(false);
+
   const projectId = $derived($page.params['id']);
   let dataLoaded = $state(false);
+
+  function insertQuery(sql: string) {
+    sqlContent = sql;
+  }
+
+  function openQueryModal() {
+    /* Fetch all queries on demand */
+    if (projectId) {
+      api.get<SavedQuery[]>(`/projects/${projectId}/queries`).then((r) => {
+        if (r.success && r.data) allQueries = r.data;
+      }).catch(() => {});
+    }
+    showQueryModal = true;
+  }
 
   /* Only fetch when session is available */
   $effect(() => {
@@ -46,6 +66,12 @@
       }).catch((err) => {
         console.error('[Project] Failed to load execution history:', err);
       });
+
+      api.get<SavedQuery[]>(`/projects/${projectId}/queries/recent`).then((r) => {
+        if (r.success && r.data) recentQueries = r.data;
+      }).catch((err) => {
+        console.error('[Project] Failed to load recent queries:', err);
+      });
     }
   });
 
@@ -62,6 +88,8 @@
       if (result.success && result.data) {
         analysisResult = result.data;
       }
+    } catch (err) {
+      console.error('[Analyze] Failed:', err);
     } finally {
       isAnalyzing = false;
     }
@@ -71,6 +99,7 @@
     if (!sqlContent.trim() || !project) return;
     isExecuting = true;
     activeTab = 'execution';
+    executionResult = null;
 
     try {
       const result = await api.post<ExecutionResult>('/execution/run', {
@@ -80,7 +109,20 @@
       });
       if (result.success && result.data) {
         executionResult = result.data;
+        /* Refresh history after execution */
+        api.get<ExecutionHistoryEntry[]>(`/execution/history/${project.id}`).then((h) => {
+          if (h.success && h.data) executionHistory = h.data;
+        }).catch(() => {});
       }
+    } catch (err) {
+      /* Build a synthetic error result so the panel always renders something */
+      executionResult = {
+        success: false,
+        status: 'error',
+        executionTimeMs: 0,
+        error: { message: err instanceof Error ? err.message : 'Unexpected error' },
+        executedAt: new Date().toISOString(),
+      };
     } finally {
       isExecuting = false;
     }
@@ -95,6 +137,11 @@
       title,
       sql: sqlContent,
     });
+
+    /* Refresh recent queries */
+    api.get<SavedQuery[]>(`/projects/${project.id}/queries/recent`).then((r) => {
+      if (r.success && r.data) recentQueries = r.data;
+    }).catch(() => {});
   }
 </script>
 
@@ -148,12 +195,15 @@
     <!-- Main Content: Editor + Results -->
     <div class="flex flex-1 overflow-hidden">
       <!-- Editor -->
-      <div class="flex-1 border-r border-[var(--color-border)]">
-        <MonacoEditor
-          bind:value={sqlContent}
-          language="sql"
-          placeholder={$t.editor.placeholder}
-        />
+      <div class="flex flex-1 flex-col border-r border-[var(--color-border)]">
+        <SavedQueryChips queries={recentQueries} onInsert={insertQuery} onShowAll={openQueryModal} />
+        <div class="flex-1">
+          <MonacoEditor
+            bind:value={sqlContent}
+            language="sql"
+            placeholder={$t.editor.placeholder}
+          />
+        </div>
       </div>
 
       <!-- Results Panel -->
@@ -195,7 +245,7 @@
         <!-- Panel Content -->
         <div class="flex-1 overflow-auto p-4">
           {#if activeTab === 'analysis'}
-            <AnalysisPanel result={analysisResult} {isAnalyzing} />
+            <AnalysisPanel result={analysisResult} {isAnalyzing} onInsertRewrite={insertQuery} />
           {:else if activeTab === 'execution'}
             <ExecutionPanel result={executionResult} {isExecuting} />
           {:else}
@@ -234,4 +284,11 @@
       </div>
     </div>
   </div>
+
+  <SavedQueryModal
+    queries={allQueries}
+    open={showQueryModal}
+    onInsert={insertQuery}
+    onClose={() => { showQueryModal = false; }}
+  />
 {/if}

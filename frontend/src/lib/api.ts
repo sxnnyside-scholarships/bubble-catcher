@@ -1,5 +1,9 @@
 import { PUBLIC_API_URL } from '$env/static/public';
 import { supabase } from './supabase';
+import { session, sessionLoaded } from './stores';
+import { goto } from '$app/navigation';
+import { get } from 'svelte/store';
+import { resolveErrorCode } from './i18n';
 import type { ApiResult } from '$shared/types';
 
 if (!PUBLIC_API_URL) {
@@ -15,14 +19,22 @@ if (!PUBLIC_API_URL.startsWith('http')) {
 }
 
 async function getAuthHeaders(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
+  /* Block until initial session restoration is complete */
+  if (!get(sessionLoaded)) {
+    await new Promise<void>((resolve) => {
+      const unsub = sessionLoaded.subscribe((loaded) => {
+        if (loaded) { unsub(); resolve(); }
+      });
+    });
+  }
+
+  const currentSession = get(session);
+  if (!currentSession) {
     throw new Error('Not authenticated');
   }
 
-  const token = session.access_token;
-  // Defensive: validate JWT structure before sending to backend
-  if (token.split('.').length !== 3) {
+  const token = currentSession.access_token;
+  if (!token || token.split('.').length !== 3) {
     throw new Error('Invalid session token — please sign in again');
   }
 
@@ -37,33 +49,44 @@ async function request<T>(
   path: string,
   body?: unknown,
 ): Promise<ApiResult<T>> {
-  try {
-    const headers = await getAuthHeaders();
-    const url = `${PUBLIC_API_URL}${path}`;
+  const headers = await getAuthHeaders();
+  const url = `${PUBLIC_API_URL}${path}`;
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: 'include',
-    });
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include',
+  });
 
-    if (!response.ok) {
-      const text = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(text);
-      } catch {
-        throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
-      }
-      throw new Error(errorData.error?.message || `HTTP ${response.status}`);
-    }
-
-    return response.json() as Promise<ApiResult<T>>;
-  } catch (error) {
-    console.error('[API Error]', error);
-    throw error;
+  /* Handle 401 globally — expired/invalid token */
+  if (response.status === 401) {
+    await supabase.auth.signOut();
+    session.set(null);
+    goto('/');
+    throw new Error('Session expired — please sign in again');
   }
+
+  if (!response.ok) {
+    const text = await response.text();
+    let errorData;
+    try {
+      errorData = JSON.parse(text);
+    } catch {
+      throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+    }
+    /* If the response follows our ApiError shape, resolve error code to localized message */
+    if (errorData && typeof errorData === 'object' && 'success' in errorData && errorData.success === false) {
+      const apiErr = errorData as ApiResult<T>;
+      if (apiErr.error?.code) {
+        apiErr.error.message = resolveErrorCode(apiErr.error.code);
+      }
+      return apiErr;
+    }
+    throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+  }
+
+  return response.json() as Promise<ApiResult<T>>;
 }
 
 export const api = {

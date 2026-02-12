@@ -5,6 +5,7 @@
   import { t } from '$lib/i18n';
   import { supabase } from '$lib/supabase';
   import { api } from '$lib/api';
+  import ThemeIcon from '$lib/components/ThemeIcon.svelte';
 
   let { children } = $props();
   let sidebarCollapsed = $state(false);
@@ -42,6 +43,7 @@
     await supabase.auth.signOut();
     session.set(null);
     userProfile.set(null);
+    profileFetched = false;
     goto('/');
   }
 
@@ -63,20 +65,12 @@
       <div class="flex h-16 items-center border-b border-[var(--color-border)] px-4">
         {#if !sidebarCollapsed}
           <div class="flex items-center gap-3">
-            <div class="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-              <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="8" r="5" />
-                <path d="M12 13v4m0 0l-2 2m2-2l2 2" />
-              </svg>
-            </div>
+            <ThemeIcon size={32} />
             <span class="text-lg font-bold gradient-primary-text">Bubble Catcher</span>
           </div>
         {:else}
-          <div class="mx-auto flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-            <svg class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="8" r="5" />
-              <path d="M12 13v4m0 0l-2 2m2-2l2 2" />
-            </svg>
+          <div class="mx-auto">
+            <ThemeIcon size={32} />
           </div>
         {/if}
       </div>

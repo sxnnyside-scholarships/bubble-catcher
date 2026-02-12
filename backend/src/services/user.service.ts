@@ -12,7 +12,7 @@ export class UserService {
       .single();
 
     if (error || !data) {
-      throw AppError.notFound('User profile not found');
+      throw AppError.notFound('NOT_FOUND');
     }
 
     return mapProfileRow(data);
@@ -37,7 +37,7 @@ export class UserService {
       .select('*')
       .single();
 
-    if (error || !data) throw AppError.internal('Failed to update preferences');
+    if (error || !data) throw AppError.internal('INTERNAL_ERROR');
     return mapProfileRow(data);
   }
 }

@@ -20,7 +20,7 @@ export class ProjectService {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (error) throw AppError.internal(`Failed to fetch projects: ${error.message}`);
+    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
     return (data ?? []).map(mapProjectRow);
   }
 
@@ -34,7 +34,7 @@ export class ProjectService {
       .eq('user_id', userId)
       .single();
 
-    if (error || !data) throw AppError.notFound('Project not found');
+    if (error || !data) throw AppError.notFound('NOT_FOUND');
     return mapProjectRow(data);
   }
 
@@ -42,10 +42,10 @@ export class ProjectService {
   async createProject(userId: string, payload: CreateProjectPayload, accessToken: string): Promise<Project> {
     /* Validate dialect */
     if (isEnterpriseDialect(payload.dialect)) {
-      throw AppError.forbidden(`${payload.dialect} projects require an Enterprise plan`);
+      throw AppError.forbidden('ENTERPRISE_REQUIRED', { dialect: payload.dialect });
     }
     if (!isSupportedDialect(payload.dialect)) {
-      throw AppError.badRequest(`Unsupported dialect: ${payload.dialect}`);
+      throw AppError.badRequest('UNSUPPORTED_DIALECT', { dialect: payload.dialect });
     }
 
     /* Enforce project limit */
@@ -53,9 +53,7 @@ export class ProjectService {
     if (userPlan === 'free') {
       const count = await this.getProjectCount(userId);
       if (count >= MAX_PROJECTS_FREE) {
-        throw AppError.limitReached(
-          `Free plan allows up to ${MAX_PROJECTS_FREE} projects. Upgrade to Premium for unlimited projects.`,
-        );
+        throw AppError.limitReached('PROJECT_LIMIT', { max: MAX_PROJECTS_FREE, plan: userPlan });
       }
     }
 
@@ -71,8 +69,8 @@ export class ProjectService {
       .select('*')
       .single();
 
-    if (error) throw AppError.internal(`Failed to create project: ${error.message}`);
-    if (!data) throw AppError.internal('Project creation returned no data');
+    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
+    if (!data) throw AppError.internal('INTERNAL_ERROR');
     return mapProjectRow(data);
   }
 
@@ -80,10 +78,10 @@ export class ProjectService {
   async updateProject(userId: string, projectId: string, payload: UpdateProjectPayload, accessToken: string): Promise<Project> {
     if (payload.dialect) {
       if (isEnterpriseDialect(payload.dialect)) {
-        throw AppError.forbidden(`${payload.dialect} projects require an Enterprise plan`);
+        throw AppError.forbidden('ENTERPRISE_REQUIRED', { dialect: payload.dialect });
       }
       if (!isSupportedDialect(payload.dialect)) {
-        throw AppError.badRequest(`Unsupported dialect: ${payload.dialect}`);
+        throw AppError.badRequest('UNSUPPORTED_DIALECT', { dialect: payload.dialect });
       }
     }
 
@@ -101,7 +99,7 @@ export class ProjectService {
       .select('*')
       .single();
 
-    if (error || !data) throw AppError.notFound('Project not found or update failed');
+    if (error || !data) throw AppError.notFound('NOT_FOUND');
     return mapProjectRow(data);
   }
 
@@ -114,7 +112,7 @@ export class ProjectService {
       .eq('id', projectId)
       .eq('user_id', userId);
 
-    if (error) throw AppError.internal(`Failed to delete project: ${error.message}`);
+    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
   }
 
   /** Get saved queries for a project */
@@ -129,7 +127,23 @@ export class ProjectService {
       .eq('project_id', projectId)
       .order('created_at', { ascending: false });
 
-    if (error) throw AppError.internal(`Failed to fetch queries: ${error.message}`);
+    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
+    return (data ?? []).map(mapQueryRow);
+  }
+
+  /** Get recent queries for a project, limited to N */
+  async recentQueries(userId: string, projectId: string, accessToken: string, limit = 5): Promise<SavedQuery[]> {
+    await this.getProject(userId, projectId, accessToken);
+
+    const client = createUserClient(accessToken);
+    const { data, error } = await client
+      .from('bubble_saved_queries')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
     return (data ?? []).map(mapQueryRow);
   }
 
@@ -148,8 +162,8 @@ export class ProjectService {
       .select('*')
       .single();
 
-    if (error) throw AppError.internal(`Failed to create query: ${error.message}`);
-    if (!data) throw AppError.internal('Query creation returned no data');
+    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
+    if (!data) throw AppError.internal('INTERNAL_ERROR');
     return mapQueryRow(data);
   }
 
@@ -170,7 +184,7 @@ export class ProjectService {
       .select('*')
       .single();
 
-    if (error || !data) throw AppError.notFound('Query not found or update failed');
+    if (error || !data) throw AppError.notFound('NOT_FOUND');
     return mapQueryRow(data);
   }
 
@@ -185,7 +199,7 @@ export class ProjectService {
       .eq('id', queryId)
       .eq('project_id', projectId);
 
-    if (error) throw AppError.internal(`Failed to delete query: ${error.message}`);
+    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
   }
 
   private async getProjectCount(userId: string): Promise<number> {
@@ -194,7 +208,7 @@ export class ProjectService {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId);
 
-    if (error) throw AppError.internal(`Failed to count projects: ${error.message}`);
+    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
     return count ?? 0;
   }
 

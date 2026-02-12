@@ -18,6 +18,8 @@ export interface AnalysisResult {
   ast: unknown;
   parsedSuccessfully: boolean;
   parseError: string | null;
+  /** Rule IDs that require a higher plan — frontend shows locked badges */
+  lockedRuleIds?: string[];
 }
 
 export interface AnalyzeQueryPayload {

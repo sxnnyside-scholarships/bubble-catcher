@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { session, sessionLoaded, loadTheme, loadLocale } from '$lib/stores';
+  import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+  import { session, sessionLoaded, userProfile, loadTheme, loadLocale } from '$lib/stores';
 
   let { children } = $props();
 
@@ -10,15 +11,19 @@
     loadLocale();
 
     // Restore session and signal readiness BEFORE children act on it
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
       session.set(data.session);
       sessionLoaded.set(true);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, newSession: Session | null) => {
       session.set(newSession);
-      // Ensure sessionLoaded is true after any auth state change
       sessionLoaded.set(true);
+
+      /* Clear user state on sign-out or token expiry */
+      if (event === 'SIGNED_OUT' || !newSession) {
+        userProfile.set(null);
+      }
     });
 
     return () => subscription.unsubscribe();
