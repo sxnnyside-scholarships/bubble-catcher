@@ -133,7 +133,7 @@ git push origin feature/your-feature-name
 
 ### Reporting Bugs
 
-- Check if the issue already exists in [GitHub Issues](https://github.com/sxnnyside/bubble-catcher/issues).
+- Check if the issue already exists in [GitHub Issues](https://github.com/HoujouSxnnyside/bubble-catcher/issues).
 - If not, open a new issue with:
   - A clear title and description.
   - Steps to reproduce the issue.
@@ -143,7 +143,7 @@ git push origin feature/your-feature-name
 
 ### Suggesting Features
 
-- Open a [feature request issue](https://github.com/sxnnyside/bubble-catcher/issues/new).
+- Open a [feature request issue](https://github.com/HoujouSxnnyside/bubble-catcher/issues/new).
 - Explain the use case and why it would be valuable.
 - Provide examples or mockups if possible.
 
@@ -427,7 +427,7 @@ Use descriptive branch names that reflect the type of change:
 
 If you have questions about contributing, feel free to:
 
-- Open a [GitHub Discussion](https://github.com/sxnnyside/bubble-catcher/discussions).
+- Open a [GitHub Discussion](https://github.com/HoujouSxnnyside/bubble-catcher/discussions).
 - Email us at support.sxnnyside@sxnnysideproject.com.
 
 ---

@@ -3,6 +3,7 @@
   import { supabase } from '$lib/supabase';
   import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
   import { session, sessionLoaded, userProfile, loadTheme, loadLocale } from '$lib/stores';
+  import BrandingFooter from '$lib/components/BrandingFooter.svelte';
 
   let { children } = $props();
 
@@ -30,6 +31,9 @@
   });
 </script>
 
-<div class="min-h-screen bg-[var(--color-surface)] text-[var(--color-text)]">
-  {@render children()}
+<div class="flex min-h-screen flex-col bg-[var(--color-surface)] text-[var(--color-text)]">
+  <div class="flex-1">
+    {@render children()}
+  </div>
+  <BrandingFooter />
 </div>

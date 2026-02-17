@@ -1,30 +1,41 @@
 # Bubble Catcher
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blueviolet)
+![Release](https://img.shields.io/badge/release-stable-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Runtime](https://img.shields.io/badge/runtime-Bun-f472b6)
 ![Frontend](https://img.shields.io/badge/frontend-SvelteKit%205-ff3e00)
 
-**By Sxnnyside Project**
+> **Stable Release — v1.0.0**
+
+**Developed by [Sxnnyside Scholarships](https://www.sxnnysideproject.com), an initiative of [Sxnnyside Project](https://www.sxnnysideproject.com).**
 
 Bubble Catcher is an educational SQL analysis and sandboxed execution platform. It parses SQL queries, detects inefficiencies and unsafe patterns through a rule-based static analysis engine, suggests safer rewrites, and executes queries inside ephemeral Docker containers isolated from the host system.
 
-Designed for students, educators, and developers who want to learn SQL by writing it, seeing what it does, and understanding what could go wrong -- without risk.
+Designed for students, educators, and developers who want to learn SQL by writing it, seeing what it does, and understanding what could go wrong — without risk.
+
+---
+
+## Repository
+
+**GitHub:** [https://github.com/HoujouSxnnyside/bubble-catcher](https://github.com/HoujouSxnnyside/bubble-catcher)
+
+**Website:** [https://www.sxnnysideproject.com](https://www.sxnnysideproject.com)
 
 ---
 
 ## Version 1.0.0 Highlights
 
-- **Secure sandbox execution** -- Ephemeral Docker containers with network isolation, memory/CPU limits, and capability dropping
-- **Plan-based rule system** -- Free and Premium analysis tiers with gated advanced rules
-- **Advanced telemetry** -- Per-user execution metrics, dialect usage tracking, and success rate monitoring
-- **Theme system** -- Light, Dark, and Vibrant themes with persistent user preferences
-- **Saved query reuse** -- Save, search, and reinsert queries across projects
-- **Structured error handling** -- Consistent HTTP error codes with i18n error messages
-- **Security hardening** -- IP rate limiting, query guard, CORS validation, execution audit trail
-- **Observability metrics** -- Structured JSON logging, request context propagation, telemetry dashboard
-- **Icon system** -- Theme-aware favicons with PWA compatibility
-- **Internationalization** -- Full English and Spanish support
+- **Secure sandbox execution** — Ephemeral Docker containers with network isolation, memory/CPU limits, and capability dropping
+- **Plan-based rule system** — Free and Premium analysis tiers with gated advanced rules
+- **Advanced telemetry** — Per-user execution metrics, dialect usage tracking, and success rate monitoring
+- **Theme system** — Light, Dark, and Vibrant themes with persistent user preferences
+- **Saved query reuse** — Save, search, and reinsert queries across projects
+- **Structured error handling** — Consistent HTTP error codes with i18n error messages
+- **Security hardening** — IP rate limiting, query guard, CORS validation, execution audit trail
+- **Observability metrics** — Structured JSON logging, request context propagation, telemetry dashboard
+- **Icon system** — Theme-aware favicons with PWA compatibility
+- **Internationalization** — Full English and Spanish support
 
 ---
 
@@ -82,7 +93,7 @@ Browser
   v
 Elysia Server (Bun)
   |
-  |-- errorHandler           (global -- catches all errors)
+  |-- errorHandler           (global — catches all errors)
   |-- authMiddleware          (validates JWT via Supabase)
   |-- ensureProfileMiddleware (auto-provisions user profile)
   |
@@ -132,10 +143,10 @@ JSON response -> Browser
 
 The project uses a flat monorepo layout without a package manager workspace. Each package manages its own dependencies:
 
-- **`backend/`** -- Bun-managed. Install with `bun install`.
-- **`frontend/`** -- npm-managed. Install with `npm install`.
-- **`shared/`** -- Pure TypeScript types, no dependencies. Imported via path aliases (`$shared/*` in frontend, `@shared/*` in backend).
-- **`docker/`** -- Dockerfiles and seed SQL. No package manager.
+- **`backend/`** — Bun-managed. Install with `bun install`.
+- **`frontend/`** — npm-managed. Install with `npm install`.
+- **`shared/`** — Pure TypeScript types, no dependencies. Imported via path aliases (`$shared/*` in frontend, `@shared/*` in backend).
+- **`docker/`** — Dockerfiles and seed SQL. No package manager.
 
 The root `Makefile` orchestrates cross-package commands.
 
@@ -167,12 +178,12 @@ Every query execution creates an isolated, ephemeral Docker container. The conta
 
 | Dialect | Image | Status |
 |---|---|---|
-| SQLite | `bubble-catcher-sqlite:latest` | Supported |
-| PostgreSQL | `bubble-catcher-postgres:latest` | Supported |
-| MySQL | `bubble-catcher-mysql:latest` | Supported |
-| MariaDB | `bubble-catcher-mariadb:latest` | Supported |
-| MSSQL | `bubble-catcher-mssql:latest` | Supported |
-| Oracle | -- | Planned (enterprise) |
+| SQLite | `bubble-catcher-sqlite:1.0.0` | Supported |
+| PostgreSQL | `bubble-catcher-postgres:1.0.0` | Supported |
+| MySQL | `bubble-catcher-mysql:1.0.0` | Supported |
+| MariaDB | `bubble-catcher-mariadb:1.0.0` | Supported |
+| MSSQL | `bubble-catcher-mssql:1.0.0` | Supported |
+| Oracle | — | Planned (enterprise) |
 
 ---
 
@@ -200,7 +211,7 @@ Every query execution creates an isolated, ephemeral Docker container. The conta
 
 ```bash
 git clone https://github.com/HoujouSxnnyside/bubble-catcher.git
-cd bubble-catcher
+cd bubble-catchery
 ```
 
 ### Step 2: Install dependencies
@@ -288,9 +299,17 @@ See [ROADMAP.md](ROADMAP.md) for the full development roadmap with pass-by-pass 
 
 ---
 
+## Ownership
+
+Bubble Catcher is developed under **Sxnnyside Scholarships**, an initiative of **[Sxnnyside Project](https://www.sxnnysideproject.com)**.
+
+---
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+© 2026 Sxnnyside Project
 
 ---
 
@@ -298,3 +317,4 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 - **General support:** support.sxnnyside@sxnnysideproject.com
 - **Security issues:** security.sxnnyside@sxnnysideproject.com (see [SECURITY.md](SECURITY.md))
+- **Website:** [https://www.sxnnysideproject.com](https://www.sxnnysideproject.com)

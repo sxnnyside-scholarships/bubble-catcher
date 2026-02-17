@@ -30,7 +30,7 @@ Include the following information:
 
 ### What to Expect
 
-- **Acknowledgment:** We will acknowledge receipt of your report within 48 hours.
+- **Acknowledgment:** We will acknowledge receipt of your report within 72 hours.
 - **Assessment:** We will investigate and assess the severity within 7 business days.
 - **Resolution:** Critical vulnerabilities will be patched as soon as possible. We aim to release fixes within 14 days of confirmation.
 - **Disclosure:** We will coordinate with you on public disclosure timing. We follow a 90-day disclosure deadline from the date of the initial report.

@@ -16,8 +16,8 @@
 
   const iconMap = {
     colorful: '/favicon.svg',
-    light: '/favicon-light.svg',
-    dark: '/favicon-dark.svg',
+    light: '/favicon.svg',
+    dark: '/favicon.svg',
   } as const;
 
   const src = $derived(iconMap[$theme] ?? iconMap.colorful);

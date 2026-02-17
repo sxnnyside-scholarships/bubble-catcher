@@ -1,13 +1,19 @@
-# Bubble Catcher — Roadmap
+# Changelog
 
-![Version](https://img.shields.io/badge/version-1.0.0-blueviolet)
-![Release](https://img.shields.io/badge/release-stable-brightgreen)
+All notable changes to Bubble Catcher will be documented in this file.
 
-**v1.0.0 released on 2026-02-12.**
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Development Passes
+---
 
-### P0 — Stability & Foundation ✅
+## [1.0.0] - 2026-02-12
+
+### Stable Release
+
+First official stable release of Bubble Catcher — an educational SQL analysis and sandboxed execution platform.
+
+### P0 — Stability & Foundation
 
 - Project scaffolding (Bun + Elysia + SvelteKit + Supabase)
 - Docker sandbox architecture with ephemeral containers
@@ -20,7 +26,7 @@
 - Error handling middleware
 - Seed data for all dialects
 
-### P1 — Features ✅
+### P1 — Features
 
 - Saved queries (save, search, reinsert)
 - Three-theme system (Colorful / Light / Dark)
@@ -28,9 +34,6 @@
 - User preferences persistence (theme + locale)
 - Pricing page with plan tiers
 - Dashboard with project stats
-
-### P1.5 — Polish ✅
-
 - Monaco Editor reactivity fix (Svelte 5 `$state` compatibility)
 - Rule i18n (all 11 rules translated to Spanish)
 - Dialect audit across analysis rules
@@ -38,13 +41,7 @@
 - Premium rule gating (plan-based access control)
 - Suggested rewrite UX upgrade
 
-### Debug Pass ✅
-
-- Sandbox Docker executor stability fix
-- Monaco `$state` reactivity fix
-- Suggested rewrite insertion UX
-
-### P2 — Security & Hardening ✅
+### P2 — Security & Hardening
 
 - Structured JSON logging with query hashing (SHA-256)
 - Heuristic SQL query guard (regex-based pre-flight validation)
@@ -57,7 +54,7 @@
 - Plan limits enforcement (Free: 5s/20 exec/min, Premium: 15s/100 exec/min)
 - Docker pre-flight availability checks
 
-### P3 — Telemetry & Observability ✅
+### P3 — Telemetry & Observability
 
 - Telemetry table (bubble_telemetry) with RLS
 - Backend telemetry recording on analysis + execution events
@@ -65,14 +62,15 @@
 - Dashboard integration (stat cards, dialect usage chart, success rate)
 - Structured response logging
 
-### P4 — Branding & Icon System ✅
+### P4 — Branding & Icon System
 
 - Theme-aware favicon variants (dark, light, transparent)
 - ThemeIcon reactive component
 - PWA meta tags (apple-touch-icon, mask-icon, theme-color)
 - Sidebar logo integration
+- Footer branding (Sxnnyside Scholarships · Sxnnyside Project)
 
-### P5 — Final Stabilization (v1.0.0) ✅
+### P5 — Final Stabilization
 
 - Settings page improvements (locale neutrality, support buttons, legal links)
 - Patreon integration link
@@ -80,17 +78,10 @@
 - Premium-only support request with conditional rendering
 - Privacy Policy and Terms & Conditions links
 - README v1.0.0 finalization with version badges
-- Roadmap documentation
+- CHANGELOG, ROADMAP, SECURITY, and CONTRIBUTING documentation
+- Version synchronization across all packages
+- Docker image versioning (1.0.0 tags)
 
 ---
 
-## Future (Post v1.0.0)
-
-- Oracle dialect support (enterprise plan)
-- Custom seed data upload per project
-- Query plan visualization (EXPLAIN integration)
-- Collaborative project sharing
-- Additional analysis rules (window function misuse, index suggestions)
-- AI-powered query rewrite suggestions
-- Team management and SSO (enterprise)
-- Dedicated sandbox containers (enterprise)
+[1.0.0]: https://github.com/HoujouSxnnyside/bubble-catcher/releases/tag/v1.0.0

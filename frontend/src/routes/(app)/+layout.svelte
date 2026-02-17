@@ -6,6 +6,7 @@
   import { supabase } from '$lib/supabase';
   import { api } from '$lib/api';
   import ThemeIcon from '$lib/components/ThemeIcon.svelte';
+  import BrandingFooter from '$lib/components/BrandingFooter.svelte';
 
   let { children } = $props();
   let sidebarCollapsed = $state(false);
@@ -139,8 +140,11 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-auto bg-[var(--color-surface)]">
-      {@render children()}
+    <main class="flex flex-1 flex-col overflow-auto bg-[var(--color-surface)]">
+      <div class="flex-1">
+        {@render children()}
+      </div>
+      <BrandingFooter />
     </main>
   </div>
 {/if}

@@ -2,6 +2,7 @@
   import { supabase } from '$lib/supabase';
   import { t } from '$lib/i18n';
   import ThemeIcon from '$lib/components/ThemeIcon.svelte';
+  import BrandingFooter from '$lib/components/BrandingFooter.svelte';
 
 
   let email = $state('');
@@ -45,7 +46,6 @@
         <ThemeIcon size={120} />
       </div>
       <h1 class="text-3xl font-bold gradient-primary-text">{$t.common.appName}</h1>
-      <p class="mt-1 text-sm text-[var(--color-text-tertiary)]">{$t.common.byLine}</p>
       <p class="mt-4 text-[var(--color-text-secondary)]">{$t.auth.loginDescription}</p>
     </div>
 
@@ -137,5 +137,9 @@
     <p class="mt-6 text-center text-xs text-[var(--color-text-tertiary)]">
       {$t.common.tagline}
     </p>
+
+    <div class="mt-4">
+      <BrandingFooter />
+    </div>
   </div>
 </div>
