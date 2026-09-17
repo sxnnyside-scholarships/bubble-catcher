@@ -1,0 +1,128 @@
+# Unified Self-Host Deployment for Bubble Catcher
+#
+# Services:
+#   - frontend: Nginx container serving Vue 3 SPA + reverse-proxying /api to backend
+#   - backend: Bun API server managing queries, analysis, schemas, and sandbox
+#   - postgres: Metadata database (users, projects, queries, engine states)
+#   - docker-proxy: Restricted least-privilege Docker socket proxy (Tecnativa)
+#   - migrate: One-shot auto-migration service (runs on startup)
+#
+# Usage:
+#   cp backend/.env.example backend/.env   # fill in JWT_SECRET, POSTGRES_PASSWORD, etc.
+#   cd docker && ./build-images.sh && cd ..   # build sandbox engine images
+#   docker compose up -d
+#
+# Open http://localhost in your browser.
+
+services:
+  # ── Restricted Docker Socket Proxy ──────────────────────────────────
+  # Shields the host daemon by exposing a read-only / filtered API to the backend.
+  # Prohibits host volume mounting, swarm, system commands, and privileged mode.
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: unless-stopped
+    environment:
+      # APIs needed by Bubble Catcher sandbox executor:
+      CONTAINERS: 1
+      IMAGES: 1
+      POST: 1
+      EXEC: 1
+      INFO: 1
+      # Explicitly denied for multi-tenant hardening:
+      VOLUMES: 0
+      NETWORKS: 0
+      SWARM: 0
+      SYSTEM: 0
+      BUILD: 0
+      AUTH: 0
+      SECRETS: 0
+      NODES: 0
+      SERVICES: 0
+      TASKS: 0
+      PLUGINS: 0
+      EVENTS: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - bubble-network
+
+  # ── Metadata Database (Postgres) ────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bubble_catcher
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your environment or an .env file next to this compose file}
+      POSTGRES_DB: bubble_catcher
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bubble_catcher"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bubble-network
+
+  # ── Automated Drizzle Migrations ────────────────────────────────────
+  # Runs on startup before the backend initializes, ensuring tables and triggers exist.
+  migrate:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgres://bubble_catcher:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/bubble_catcher
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["bun", "run", "db:setup"]
+    networks:
+      - bubble-network
+
+  # ── Application Backend (Bun) ───────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgres://bubble_catcher:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/bubble_catcher
+      DOCKER_HOST: tcp://docker-proxy:2375
+      NODE_ENV: production
+      PORT: 3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      docker-proxy:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - bubble-network
+    # Internal loopback exposure for debugging (optional):
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  # ── Application Frontend (Nginx) ────────────────────────────────────
+  # Multi-stage production build serving the SPA and reverse-proxying /api to backend.
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api/v1
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - bubble-network
+
+networks:
+  bubble-network:
+    driver: bridge
+
+volumes:
+  postgres-data:

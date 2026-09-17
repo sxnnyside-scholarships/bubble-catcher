@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+/*
+ * Bubble Catcher — Theme System (ported from frontend-legacy/src/app.css)
+ * Three themes via data-theme on <html>: colorful (default), light, dark.
+ */
+
+@theme {
+  --color-primary-50: #f5f3ff;
+  --color-primary-100: #ede9fe;
+  --color-primary-200: #ddd6fe;
+  --color-primary-300: #c4b5fd;
+  --color-primary-400: #a78bfa;
+  --color-primary-500: #8b5cf6;
+  --color-primary-600: #7c3aed;
+  --color-primary-700: #6d28d9;
+  --color-primary-800: #5b21b6;
+  --color-primary-900: #4c1d95;
+
+  --color-accent-50: #eff6ff;
+  --color-accent-100: #dbeafe;
+  --color-accent-200: #bfdbfe;
+  --color-accent-300: #93c5fd;
+  --color-accent-400: #60a5fa;
+  --color-accent-500: #3b82f6;
+  --color-accent-600: #2563eb;
+  --color-accent-700: #1d4ed8;
+
+  --color-pink-50: #fdf2f8;
+  --color-pink-100: #fce7f3;
+  --color-pink-200: #fbcfe8;
+  --color-pink-300: #f9a8d4;
+  --color-pink-400: #f472b6;
+  --color-pink-500: #ec4899;
+  --color-pink-600: #db2777;
+
+  --color-surface: #0c0e1a;
+  --color-surface-secondary: #13152a;
+  --color-surface-tertiary: #1a1d35;
+  --color-border: #2e1065;
+  --color-text: #e4e4e7;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+[data-theme="light"] {
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+
+  --color-accent-500: #6366f1;
+  --color-accent-600: #4f46e5;
+
+  --color-pink-500: #6366f1;
+  --color-pink-600: #4f46e5;
+
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f9fafb;
+  --color-surface-tertiary: #f3f4f6;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-tertiary: #9ca3af;
+
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+}
+
+[data-theme="light"] .gradient-primary {
+  background: var(--color-primary-500);
+}
+
+[data-theme="light"] .gradient-primary-text {
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: var(--color-primary-600);
+  background-clip: unset;
+}
+
+[data-theme="dark"] {
+  --color-primary-50: #1e1b3a;
+  --color-primary-100: #2a2550;
+  --color-primary-200: #3b3470;
+  --color-primary-300: #6d5fad;
+  --color-primary-400: #9b8bda;
+  --color-primary-500: #a78bfa;
+  --color-primary-600: #8b5cf6;
+  --color-primary-700: #7c3aed;
+  --color-primary-800: #6d28d9;
+  --color-primary-900: #5b21b6;
+
+  --color-accent-500: #60a5fa;
+  --color-accent-600: #3b82f6;
+
+  --color-pink-500: #f472b6;
+  --color-pink-600: #ec4899;
+
+  --color-surface: #111318;
+  --color-surface-secondary: #1a1d25;
+  --color-surface-tertiary: #22252e;
+  --color-border: #2e3140;
+  --color-text: #e4e4e7;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #60a5fa;
+}
+
+[data-theme="dark"] .gradient-primary {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6, #ec4899);
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+[data-theme="colorful"] body {
+  background: linear-gradient(135deg, #0f0c29 0%, #1a1040 40%, #0f1a2e 100%);
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+[data-theme="colorful"] .gradient-primary {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6, #ec4899, #8b5cf6);
+  background-size: 300% 300%;
+  animation: gradient-shift 8s ease-in-out infinite;
+}
+
+[data-theme="colorful"] .gradient-primary-text {
+  background: linear-gradient(135deg, #a78bfa, #60a5fa, #f472b6, #a78bfa);
+  background-size: 300% 300%;
+  animation: gradient-shift 8s ease-in-out infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-primary {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500), var(--color-pink-500));
+}
+
+.gradient-primary-text {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500), var(--color-pink-500));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/** Metallic "plateado" (silver) wordmark — used in the dashboard topbar. */
+.gradient-silver-text {
+  background: linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 35%, #e4e4e7 55%, #71717a 80%, #f4f4f5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+[data-theme="colorful"] ::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

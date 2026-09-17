@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule, PlanTier } from '../rule.interface';
 import type { AST, Select } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects SELECT DISTINCT that may be masking a JOIN issue
@@ -12,7 +12,6 @@ export class SelectDistinctMisuseRule implements AnalysisRule {
   readonly id = 'select-distinct-misuse';
   readonly name = 'SELECT DISTINCT Misuse';
   readonly description = 'Detects DISTINCT that may mask incorrect JOINs';
-  readonly requiresPlan: PlanTier = 'premium';
 
   analyze(ast: AST): AnalysisIssue[] {
     const issues: AnalysisIssue[] = [];

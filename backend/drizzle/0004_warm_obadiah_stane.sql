@@ -1,0 +1,2 @@
+ALTER TABLE "bubble_projects" ADD COLUMN "schema_statements" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "bubble_projects" ADD COLUMN "schema_tables" jsonb DEFAULT '[]'::jsonb NOT NULL;

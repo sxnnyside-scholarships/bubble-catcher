@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects unsafe SQL patterns such as:
@@ -29,9 +29,7 @@ export class UnsafePatternRule implements AnalysisRule {
           `DROP permanently removes the ${keyword ?? 'object'} and all its data. This action cannot be undone ` +
           'without a backup. In production environments, always ensure backups exist and consider using ' +
           'IF EXISTS to avoid errors when the object does not exist.',
-        suggestedRewrite: keyword === 'table'
-          ? 'DROP TABLE IF EXISTS table_name -- use IF EXISTS for safety'
-          : null,
+        suggestedRewrite: keyword === 'table' ? 'DROP TABLE IF EXISTS table_name -- use IF EXISTS for safety' : null,
         line: null,
         column: null,
       });

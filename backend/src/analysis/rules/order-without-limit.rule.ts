@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST, Select } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects ORDER BY without LIMIT, which forces the engine to sort

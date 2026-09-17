@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule, PlanTier } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects correlated subqueries in the SELECT column list,
@@ -12,7 +12,6 @@ export class NPlusOnePatternRule implements AnalysisRule {
   readonly id = 'n-plus-one-pattern';
   readonly name = 'N+1 Query Pattern';
   readonly description = 'Detects correlated subqueries in SELECT that cause N+1 execution';
-  readonly requiresPlan: PlanTier = 'premium';
 
   analyze(ast: AST): AnalysisIssue[] {
     const issues: AnalysisIssue[] = [];
@@ -36,8 +35,7 @@ export class NPlusOnePatternRule implements AnalysisRule {
             'A subquery in the SELECT column list executes once for each row in the outer query. ' +
             'If the outer query returns N rows, the subquery runs N times — this is the N+1 problem. ' +
             'Rewriting as a JOIN or using a window function can dramatically improve performance.',
-          suggestedRewrite:
-            'SELECT t1.*, t2.value FROM table1 t1 LEFT JOIN table2 t2 ON t1.id = t2.foreign_id',
+          suggestedRewrite: 'SELECT t1.*, t2.value FROM table1 t1 LEFT JOIN table2 t2 ON t1.id = t2.foreign_id',
           line: null,
           column: null,
         });

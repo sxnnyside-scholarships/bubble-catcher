@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule, PlanTier } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects WHERE conditions that compare a column to a value of
@@ -13,7 +13,6 @@ export class ImplicitTypeConversionRule implements AnalysisRule {
   readonly id = 'implicit-type-conversion';
   readonly name = 'Implicit Type Conversion';
   readonly description = 'Detects comparisons that may cause implicit type conversion';
-  readonly requiresPlan: PlanTier = 'premium';
 
   analyze(ast: AST): AnalysisIssue[] {
     const issues: AnalysisIssue[] = [];

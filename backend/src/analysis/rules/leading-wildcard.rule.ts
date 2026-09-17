@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects LIKE patterns with a leading wildcard (e.g. LIKE '%foo'),

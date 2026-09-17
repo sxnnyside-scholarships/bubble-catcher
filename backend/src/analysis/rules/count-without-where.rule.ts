@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule, PlanTier } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects COUNT(*) / COUNT(1) on a SELECT without a WHERE clause,
@@ -12,7 +12,6 @@ export class CountWithoutWhereRule implements AnalysisRule {
   readonly id = 'count-without-where';
   readonly name = 'COUNT(*) Without WHERE';
   readonly description = 'Detects COUNT(*) queries without a WHERE clause';
-  readonly requiresPlan: PlanTier = 'premium';
 
   analyze(ast: AST): AnalysisIssue[] {
     const issues: AnalysisIssue[] = [];
@@ -39,7 +38,8 @@ export class CountWithoutWhereRule implements AnalysisRule {
           if (args) {
             const argsExpr = args['expr'] as Record<string, unknown> | undefined;
             /* COUNT(*) or COUNT(1) */
-            if (argsExpr?.['type'] === 'star' || argsExpr?.['type'] === 'column_ref' && argsExpr?.['column'] === '*') return true;
+            if (argsExpr?.['type'] === 'star' || (argsExpr?.['type'] === 'column_ref' && argsExpr?.['column'] === '*'))
+              return true;
             if (argsExpr?.['type'] === 'number' && argsExpr?.['value'] === 1) return true;
           }
         }

@@ -1,5 +1,12 @@
-export { projectRoutes } from './project.routes';
+export { adminRoutes } from './admin.routes';
 export { analysisRoutes } from './analysis.routes';
+export { authRoutes } from './auth.routes';
+export { classroomRoutes } from './classroom.routes';
+export { competitionRoutes } from './competition.routes';
 export { executionRoutes } from './execution.routes';
-export { userRoutes } from './user.routes';
+export { projectRoutes } from './project.routes';
+export { publicSettingsRoutes } from './public-settings.routes';
+export { schemaRoutes } from './schema.routes';
+export { shareRoutes } from './share.routes';
 export { telemetryRoutes } from './telemetry.routes';
+export { userRoutes } from './user.routes';

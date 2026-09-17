@@ -1,4 +1,4 @@
-import type { ApiResponse, ApiError } from '@shared/types';
+import type { ApiError, ApiResponse } from '@shared/types';
 
 export function success<T>(data: T): ApiResponse<T> {
   return { success: true, data, error: null };

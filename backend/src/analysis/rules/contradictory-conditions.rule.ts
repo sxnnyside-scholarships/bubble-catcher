@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects WHERE clauses with contradictory AND conditions that will
@@ -13,8 +13,7 @@ import type { AST } from 'node-sql-parser';
 export class ContradictoryConditionsRule implements AnalysisRule {
   readonly id = 'contradictory-conditions';
   readonly name = 'Contradictory AND Conditions';
-  readonly description =
-    'Detects WHERE clauses with AND conditions that can never be true simultaneously';
+  readonly description = 'Detects WHERE clauses with AND conditions that can never be true simultaneously';
 
   analyze(ast: AST): AnalysisIssue[] {
     const issues: AnalysisIssue[] = [];
@@ -70,9 +69,7 @@ export class ContradictoryConditionsRule implements AnalysisRule {
    * Walk the WHERE tree and collect all equality conditions of the form
    * column_ref = literal that are joined exclusively by AND.
    */
-  private collectEqualities(
-    node: unknown,
-  ): Array<{ column: string; value: string }> {
+  private collectEqualities(node: unknown): Array<{ column: string; value: string }> {
     if (!node || typeof node !== 'object') return [];
 
     const record = node as Record<string, unknown>;
@@ -84,10 +81,7 @@ export class ContradictoryConditionsRule implements AnalysisRule {
 
     /* AND — recurse both branches */
     if (op === 'AND') {
-      return [
-        ...this.collectEqualities(record['left']),
-        ...this.collectEqualities(record['right']),
-      ];
+      return [...this.collectEqualities(record['left']), ...this.collectEqualities(record['right'])];
     }
 
     /* Equality comparison */
@@ -102,10 +96,7 @@ export class ContradictoryConditionsRule implements AnalysisRule {
     return [];
   }
 
-  private extractColumnLiteral(
-    a: unknown,
-    b: unknown,
-  ): { column: string; value: string } | null {
+  private extractColumnLiteral(a: unknown, b: unknown): { column: string; value: string } | null {
     const ar = a as Record<string, unknown> | undefined;
     const br = b as Record<string, unknown> | undefined;
     if (!ar || !br) return null;
@@ -124,11 +115,7 @@ export class ContradictoryConditionsRule implements AnalysisRule {
   private isLiteral(node: Record<string, unknown>): boolean {
     const t = node['type'] as string;
     return (
-      t === 'number' ||
-      t === 'string' ||
-      t === 'single_quote_string' ||
-      t === 'double_quote_string' ||
-      t === 'bool'
+      t === 'number' || t === 'string' || t === 'single_quote_string' || t === 'double_quote_string' || t === 'bool'
     );
   }
 }

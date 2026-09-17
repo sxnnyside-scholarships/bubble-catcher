@@ -1,5 +1,5 @@
 export interface ApiResponse<T> {
-  success: boolean;
+  success: true;
   data: T;
   error: null;
 }
@@ -27,7 +27,11 @@ export interface PaginatedResponse<T> {
 export interface UserProfile {
   id: string;
   email: string;
-  plan: 'free' | 'premium' | 'enterprise';
+  displayName: string | null;
+  role: 'admin' | 'user';
+  status: 'active' | 'suspended' | 'pending_approval';
+  isOwner: boolean;
+  emailVerified: boolean;
   preferredTheme: 'colorful' | 'light' | 'dark';
   preferredLocale: 'en' | 'es';
   createdAt: string;

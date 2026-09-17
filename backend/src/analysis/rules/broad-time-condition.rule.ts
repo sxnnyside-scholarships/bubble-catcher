@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects DELETE / UPDATE statements whose WHERE clause contains a broad
@@ -13,8 +13,7 @@ import type { AST } from 'node-sql-parser';
 export class BroadTimeConditionRule implements AnalysisRule {
   readonly id = 'broad-time-condition';
   readonly name = 'Broad Time-Based DELETE / UPDATE';
-  readonly description =
-    'Detects DELETE/UPDATE with broad time-based WHERE conditions that may affect many rows';
+  readonly description = 'Detects DELETE/UPDATE with broad time-based WHERE conditions that may affect many rows';
 
   private static readonly TIME_COL_PATTERN = /date|time|created|updated|modified|timestamp|_at$/i;
   private static readonly RANGE_OPS = new Set(['<', '<=', '>', '>=', 'BETWEEN']);
@@ -49,8 +48,7 @@ export class BroadTimeConditionRule implements AnalysisRule {
         const left = record['left'] as Record<string, unknown> | undefined;
         const right = record['right'] as Record<string, unknown> | undefined;
 
-        const colName =
-          this.extractTimeColumn(left) ?? this.extractTimeColumn(right);
+        const colName = this.extractTimeColumn(left) ?? this.extractTimeColumn(right);
 
         if (colName) {
           issues.push({

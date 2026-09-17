@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST, Select } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects subqueries in WHERE that could be rewritten as JOINs
@@ -74,7 +74,9 @@ export class SubqueryOptimizationRule implements AnalysisRule {
     if (record['args']) {
       const args = record['args'];
       if (Array.isArray(args)) {
-        args.forEach((arg) => this.checkForSubqueries(arg, issues));
+        args.forEach((arg) => {
+          this.checkForSubqueries(arg, issues);
+        });
       } else if (typeof args === 'object') {
         this.checkForSubqueries(args, issues);
       }

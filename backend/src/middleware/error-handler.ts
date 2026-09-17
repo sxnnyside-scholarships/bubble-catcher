@@ -1,7 +1,18 @@
 import { Elysia } from 'elysia';
 import { AppError } from '../lib/errors';
-import { error as errorResponse } from '../lib/response';
 import { logger } from '../lib/logger';
+import { error as errorResponse } from '../lib/response';
+
+/** Best-effort: pull the `summary` field out of an Elysia ValidationError's JSON-stringified message. */
+function extractValidationSummary(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  try {
+    const parsed = JSON.parse(error.message) as { summary?: unknown };
+    return typeof parsed.summary === 'string' ? parsed.summary : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Global error handler that converts AppError instances to structured responses.
@@ -27,17 +38,19 @@ export const errorHandler = new Elysia({ name: 'error-handler' })
       return errorResponse(error.code, error.code, error.details);
     }
 
-    /* Elysia validation errors → 400 */
-    if ('name' in error && error.name === 'ValidationError') {
+    /* error.code, not error.name — Elysia's ValidationError reports name:'Error'. */
+    if ('code' in error && error.code === 'VALIDATION') {
       set.status = 400;
+      const detail = extractValidationSummary(error);
 
       logger.warn('request.validation_error', {
         method: request.method,
         path: url.pathname,
         status: 400,
+        detail,
       });
 
-      return errorResponse('VALIDATION_ERROR', 'VALIDATION_ERROR');
+      return errorResponse('VALIDATION_ERROR', 'VALIDATION_ERROR', detail ? { summary: detail } : undefined);
     }
 
     /* Unexpected error → 500 */

@@ -1,250 +1,245 @@
-import { createUserClient, supabaseAdmin } from '../lib/supabase';
-import { AppError } from '../lib/errors';
 import type {
-  Project,
   CreateProjectPayload,
-  UpdateProjectPayload,
-  SavedQuery,
   CreateSavedQueryPayload,
+  PaginatedResponse,
+  Project,
+  SavedQuery,
+  UpdateProjectPayload,
   UpdateSavedQueryPayload,
 } from '@shared/types';
-import { MAX_PROJECTS_FREE, isSupportedDialect, isEnterpriseDialect } from '@shared/types';
+import { isSupportedDialect } from '@shared/types';
+import { and, count, desc, eq } from 'drizzle-orm';
+import { config } from '../config';
+import { db } from '../db/client';
+import { projectsTable, savedQueriesTable } from '../db/schema';
+import { notDeleted, softDeleteNow } from '../db/soft-delete';
+import { toProjectDto, toSavedQueryDto } from '../dto/project.dto';
+import { AppError } from '../lib/errors';
+import { type PaginationParams, parsePagination, toPaginatedResponse } from '../lib/pagination';
+import { sandboxService } from '../sandbox/service';
 
 export class ProjectService {
-  /** Get all projects for a user */
-  async listProjects(userId: string, accessToken: string): Promise<Project[]> {
-    const client = createUserClient(accessToken);
-    const { data, error } = await client
-      .from('bubble_projects')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+  async listProjects(
+    userId: string,
+    pagination: PaginationParams = parsePagination({}),
+  ): Promise<PaginatedResponse<Project>> {
+    const [rows, [{ value: total }]] = await Promise.all([
+      db
+        .select()
+        .from(projectsTable)
+        .where(and(eq(projectsTable.userId, userId), notDeleted(projectsTable.deletedAt)))
+        .orderBy(desc(projectsTable.createdAt))
+        .limit(pagination.pageSize)
+        .offset(pagination.offset),
+      db
+        .select({ value: count() })
+        .from(projectsTable)
+        .where(and(eq(projectsTable.userId, userId), notDeleted(projectsTable.deletedAt))),
+    ]);
 
-    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
-    return (data ?? []).map(mapProjectRow);
+    return toPaginatedResponse(rows.map(toProjectDto), total, pagination);
   }
 
-  /** Get a single project by ID */
-  async getProject(userId: string, projectId: string, accessToken: string): Promise<Project> {
-    const client = createUserClient(accessToken);
-    const { data, error } = await client
-      .from('bubble_projects')
-      .select('*')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single();
+  async getProject(userId: string, projectId: string): Promise<Project> {
+    const [row] = await db
+      .select()
+      .from(projectsTable)
+      .where(
+        and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId), notDeleted(projectsTable.deletedAt)),
+      );
 
-    if (error || !data) throw AppError.notFound('NOT_FOUND');
-    return mapProjectRow(data);
+    if (!row) throw AppError.notFound('NOT_FOUND');
+    return toProjectDto(row);
   }
 
-  /** Create a new project, enforcing limits */
-  async createProject(userId: string, payload: CreateProjectPayload, accessToken: string): Promise<Project> {
-    /* Validate dialect */
-    if (isEnterpriseDialect(payload.dialect)) {
-      throw AppError.forbidden('ENTERPRISE_REQUIRED', { dialect: payload.dialect });
-    }
+  async createProject(userId: string, payload: CreateProjectPayload): Promise<Project> {
     if (!isSupportedDialect(payload.dialect)) {
       throw AppError.badRequest('UNSUPPORTED_DIALECT', { dialect: payload.dialect });
     }
 
-    /* Enforce project limit */
-    const userPlan = await this.getUserPlan(userId);
-    if (userPlan === 'free') {
-      const count = await this.getProjectCount(userId);
-      if (count >= MAX_PROJECTS_FREE) {
-        throw AppError.limitReached('PROJECT_LIMIT', { max: MAX_PROJECTS_FREE, plan: userPlan });
-      }
+    const projectCount = await this.getProjectCount(userId);
+    if (projectCount >= config.maxProjectsPerUser) {
+      throw AppError.limitReached('PROJECT_LIMIT', { max: config.maxProjectsPerUser });
     }
 
-    const client = createUserClient(accessToken);
-    const { data, error } = await client
-      .from('bubble_projects')
-      .insert({
-        user_id: userId,
+    /* One project per user per dialect (a "schema") — also enforced by a partial unique index as a safety net. */
+    const [existing] = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(
+        and(
+          eq(projectsTable.userId, userId),
+          eq(projectsTable.dialect, payload.dialect),
+          notDeleted(projectsTable.deletedAt),
+        ),
+      );
+    if (existing) {
+      throw AppError.conflict('PROJECT_DIALECT_EXISTS', { dialect: payload.dialect });
+    }
+
+    const [row] = await db
+      .insert(projectsTable)
+      .values({
+        userId,
         title: payload.title,
         description: payload.description,
         dialect: payload.dialect,
       })
-      .select('*')
-      .single();
+      .returning();
 
-    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
-    if (!data) throw AppError.internal('INTERNAL_ERROR');
-    return mapProjectRow(data);
+    if (!row) throw AppError.internal('INTERNAL_ERROR');
+    return toProjectDto(row);
   }
 
-  /** Update an existing project */
-  async updateProject(userId: string, projectId: string, payload: UpdateProjectPayload, accessToken: string): Promise<Project> {
+  async updateProject(userId: string, projectId: string, payload: UpdateProjectPayload): Promise<Project> {
+    if (payload.dialect && !isSupportedDialect(payload.dialect)) {
+      throw AppError.badRequest('UNSUPPORTED_DIALECT', { dialect: payload.dialect });
+    }
+
     if (payload.dialect) {
-      if (isEnterpriseDialect(payload.dialect)) {
-        throw AppError.forbidden('ENTERPRISE_REQUIRED', { dialect: payload.dialect });
-      }
-      if (!isSupportedDialect(payload.dialect)) {
-        throw AppError.badRequest('UNSUPPORTED_DIALECT', { dialect: payload.dialect });
+      const [existing] = await db
+        .select({ id: projectsTable.id })
+        .from(projectsTable)
+        .where(
+          and(
+            eq(projectsTable.userId, userId),
+            eq(projectsTable.dialect, payload.dialect),
+            notDeleted(projectsTable.deletedAt),
+          ),
+        );
+      if (existing && existing.id !== projectId) {
+        throw AppError.conflict('PROJECT_DIALECT_EXISTS', { dialect: payload.dialect });
       }
     }
 
-    const client = createUserClient(accessToken);
-    const updateData: Record<string, unknown> = {};
-    if (payload.title !== undefined) updateData['title'] = payload.title;
-    if (payload.description !== undefined) updateData['description'] = payload.description;
-    if (payload.dialect !== undefined) updateData['dialect'] = payload.dialect;
+    const updateData: Partial<typeof projectsTable.$inferInsert> = {};
+    if (payload.title !== undefined) updateData.title = payload.title;
+    if (payload.description !== undefined) updateData.description = payload.description;
+    if (payload.dialect !== undefined) updateData.dialect = payload.dialect;
 
-    const { data, error } = await client
-      .from('bubble_projects')
-      .update(updateData)
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .select('*')
-      .single();
+    const [row] = await db
+      .update(projectsTable)
+      .set(updateData)
+      .where(
+        and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId), notDeleted(projectsTable.deletedAt)),
+      )
+      .returning();
 
-    if (error || !data) throw AppError.notFound('NOT_FOUND');
-    return mapProjectRow(data);
+    if (!row) throw AppError.notFound('NOT_FOUND');
+    return toProjectDto(row);
   }
 
-  /** Delete a project */
-  async deleteProject(userId: string, projectId: string, accessToken: string): Promise<void> {
-    const client = createUserClient(accessToken);
-    const { error } = await client
-      .from('bubble_projects')
-      .delete()
-      .eq('id', projectId)
-      .eq('user_id', userId);
+  /** Soft delete — never hard-deletes a project row */
+  async deleteProject(userId: string, projectId: string): Promise<void> {
+    const [row] = await db
+      .update(projectsTable)
+      .set({ deletedAt: softDeleteNow() })
+      .where(
+        and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId), notDeleted(projectsTable.deletedAt)),
+      )
+      .returning({ id: projectsTable.id, dialect: projectsTable.dialect });
 
-    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
+    if (!row) throw AppError.notFound('NOT_FOUND');
+
+    /* Best-effort: drop isolated project database from persistent engine if running */
+    sandboxService.dropProjectDatabase(row.dialect, projectId).catch((err) => {
+      console.warn(`[ProjectService] Could not drop sandbox DB for ${projectId} (${row.dialect}):`, err);
+    });
   }
 
-  /** Get saved queries for a project */
-  async listQueries(userId: string, projectId: string, accessToken: string): Promise<SavedQuery[]> {
-    /* Verify project ownership */
-    await this.getProject(userId, projectId, accessToken);
+  async listQueries(userId: string, projectId: string): Promise<SavedQuery[]> {
+    await this.getProject(userId, projectId);
 
-    const client = createUserClient(accessToken);
-    const { data, error } = await client
-      .from('bubble_saved_queries')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
-    return (data ?? []).map(mapQueryRow);
+    const rows = await db
+      .select()
+      .from(savedQueriesTable)
+      .where(and(eq(savedQueriesTable.projectId, projectId), notDeleted(savedQueriesTable.deletedAt)))
+      .orderBy(desc(savedQueriesTable.createdAt));
+    return rows.map(toSavedQueryDto);
   }
 
-  /** Get recent queries for a project, limited to N */
-  async recentQueries(userId: string, projectId: string, accessToken: string, limit = 5): Promise<SavedQuery[]> {
-    await this.getProject(userId, projectId, accessToken);
+  async recentQueries(userId: string, projectId: string, limit = 5): Promise<SavedQuery[]> {
+    await this.getProject(userId, projectId);
 
-    const client = createUserClient(accessToken);
-    const { data, error } = await client
-      .from('bubble_saved_queries')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('updated_at', { ascending: false })
+    const rows = await db
+      .select()
+      .from(savedQueriesTable)
+      .where(and(eq(savedQueriesTable.projectId, projectId), notDeleted(savedQueriesTable.deletedAt)))
+      .orderBy(desc(savedQueriesTable.updatedAt))
       .limit(limit);
-
-    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
-    return (data ?? []).map(mapQueryRow);
+    return rows.map(toSavedQueryDto);
   }
 
-  /** Create a saved query */
-  async createQuery(userId: string, payload: CreateSavedQueryPayload, accessToken: string): Promise<SavedQuery> {
-    await this.getProject(userId, payload.projectId, accessToken);
+  async createQuery(userId: string, payload: CreateSavedQueryPayload): Promise<SavedQuery> {
+    await this.getProject(userId, payload.projectId);
 
-    const client = createUserClient(accessToken);
-    const { data, error } = await client
-      .from('bubble_saved_queries')
-      .insert({
-        project_id: payload.projectId,
+    const [row] = await db
+      .insert(savedQueriesTable)
+      .values({
+        projectId: payload.projectId,
         title: payload.title,
         sql: payload.sql,
       })
-      .select('*')
-      .single();
+      .returning();
 
-    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
-    if (!data) throw AppError.internal('INTERNAL_ERROR');
-    return mapQueryRow(data);
+    if (!row) throw AppError.internal('INTERNAL_ERROR');
+    return toSavedQueryDto(row);
   }
 
-  /** Update a saved query */
-  async updateQuery(userId: string, projectId: string, queryId: string, payload: UpdateSavedQueryPayload, accessToken: string): Promise<SavedQuery> {
-    await this.getProject(userId, projectId, accessToken);
+  async updateQuery(
+    userId: string,
+    projectId: string,
+    queryId: string,
+    payload: UpdateSavedQueryPayload,
+  ): Promise<SavedQuery> {
+    await this.getProject(userId, projectId);
 
-    const client = createUserClient(accessToken);
-    const updateData: Record<string, unknown> = {};
-    if (payload.title !== undefined) updateData['title'] = payload.title;
-    if (payload.sql !== undefined) updateData['sql'] = payload.sql;
+    const updateData: Partial<typeof savedQueriesTable.$inferInsert> = {};
+    if (payload.title !== undefined) updateData.title = payload.title;
+    if (payload.sql !== undefined) updateData.sql = payload.sql;
 
-    const { data, error } = await client
-      .from('bubble_saved_queries')
-      .update(updateData)
-      .eq('id', queryId)
-      .eq('project_id', projectId)
-      .select('*')
-      .single();
+    const [row] = await db
+      .update(savedQueriesTable)
+      .set(updateData)
+      .where(
+        and(
+          eq(savedQueriesTable.id, queryId),
+          eq(savedQueriesTable.projectId, projectId),
+          notDeleted(savedQueriesTable.deletedAt),
+        ),
+      )
+      .returning();
 
-    if (error || !data) throw AppError.notFound('NOT_FOUND');
-    return mapQueryRow(data);
+    if (!row) throw AppError.notFound('NOT_FOUND');
+    return toSavedQueryDto(row);
   }
 
-  /** Delete a saved query */
-  async deleteQuery(userId: string, projectId: string, queryId: string, accessToken: string): Promise<void> {
-    await this.getProject(userId, projectId, accessToken);
+  /** Soft delete — never hard-deletes a saved query row */
+  async deleteQuery(userId: string, projectId: string, queryId: string): Promise<void> {
+    await this.getProject(userId, projectId);
 
-    const client = createUserClient(accessToken);
-    const { error } = await client
-      .from('bubble_saved_queries')
-      .delete()
-      .eq('id', queryId)
-      .eq('project_id', projectId);
+    const [row] = await db
+      .update(savedQueriesTable)
+      .set({ deletedAt: softDeleteNow() })
+      .where(
+        and(
+          eq(savedQueriesTable.id, queryId),
+          eq(savedQueriesTable.projectId, projectId),
+          notDeleted(savedQueriesTable.deletedAt),
+        ),
+      )
+      .returning({ id: savedQueriesTable.id });
 
-    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
+    if (!row) throw AppError.notFound('NOT_FOUND');
   }
 
   private async getProjectCount(userId: string): Promise<number> {
-    const { count, error } = await supabaseAdmin
-      .from('bubble_projects')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    if (error) throw AppError.internal('INTERNAL_ERROR', { reason: error.message });
-    return count ?? 0;
+    const [row] = await db
+      .select({ value: count() })
+      .from(projectsTable)
+      .where(and(eq(projectsTable.userId, userId), notDeleted(projectsTable.deletedAt)));
+    return row?.value ?? 0;
   }
-
-  private async getUserPlan(userId: string): Promise<string> {
-    const { data, error } = await supabaseAdmin
-      .from('bubble_profiles')
-      .select('plan')
-      .eq('id', userId)
-      .single();
-
-    if (error || !data) return 'free';
-    return (data as { plan: string }).plan ?? 'free';
-  }
-}
-
-function mapProjectRow(row: Record<string, unknown>): Project {
-  return {
-    id: row['id'] as string,
-    userId: row['user_id'] as string,
-    title: row['title'] as string,
-    description: row['description'] as string,
-    dialect: row['dialect'] as Project['dialect'],
-    createdAt: row['created_at'] as string,
-    updatedAt: row['updated_at'] as string,
-  };
-}
-
-function mapQueryRow(row: Record<string, unknown>): SavedQuery {
-  return {
-    id: row['id'] as string,
-    projectId: row['project_id'] as string,
-    title: row['title'] as string,
-    sql: row['sql'] as string,
-    createdAt: row['created_at'] as string,
-    updatedAt: row['updated_at'] as string,
-  };
 }
 
 export const projectService = new ProjectService();

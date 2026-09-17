@@ -1,4 +1,6 @@
-FROM mcr.microsoft.com/mssql/server:2022-latest
+# Pin via --build-arg MSSQL_BASE_TAG=2022-CU<N>-ubuntu-22.04 for production (see mcr.microsoft.com/en-us/product/mssql/server/tags).
+ARG MSSQL_BASE_TAG=2022-latest
+FROM mcr.microsoft.com/mssql/server:${MSSQL_BASE_TAG}
 
 ENV ACCEPT_EULA=Y
 ENV SA_PASSWORD=Sandbox123!

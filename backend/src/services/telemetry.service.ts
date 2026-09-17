@@ -1,11 +1,14 @@
 /**
  * Telemetry service — records ANALYSIS and EXECUTION events.
  *
- * Writes to bubble_telemetry via service role (bypasses RLS).
- * Never stores raw SQL — only SHA-256 hash.
- * Non-blocking: failures logged but never propagated.
+ * Writes to bubble_telemetry (append-only). Never stores raw SQL — only
+ * SHA-256 hash. Non-blocking: failures logged but never propagated.
  */
-import { supabaseAdmin } from '../lib/supabase';
+
+import type { Dialect, ExecutionHealth, ExecutionTrendPoint, TelemetrySummary } from '@shared/types';
+import { and, eq, gte, sql as rawSql } from 'drizzle-orm';
+import { db } from '../db/client';
+import { executionHistoryTable, telemetryTable } from '../db/schema';
 import { hashQuery, logger } from '../lib/logger';
 
 export type TelemetryEventType = 'ANALYSIS' | 'EXECUTION';
@@ -13,98 +16,145 @@ export type TelemetryEventType = 'ANALYSIS' | 'EXECUTION';
 interface TelemetryEvent {
   userId: string;
   eventType: TelemetryEventType;
-  dialect: string;
+  dialect: Dialect;
   executionTimeMs: number | null;
   success: boolean;
   sql: string;
 }
 
-/**
- * Record a telemetry event. Fire-and-forget — never throws.
- */
+/** Record a telemetry event. Fire-and-forget — never throws. */
 export async function recordTelemetry(event: TelemetryEvent): Promise<void> {
   try {
-    const { error } = await supabaseAdmin.from('bubble_telemetry').insert({
-      user_id: event.userId,
-      event_type: event.eventType,
+    await db.insert(telemetryTable).values({
+      userId: event.userId,
+      eventType: event.eventType,
       dialect: event.dialect,
-      execution_time_ms: event.executionTimeMs,
+      executionTimeMs: event.executionTimeMs,
       success: event.success,
-      query_hash: hashQuery(event.sql),
+      queryHash: hashQuery(event.sql),
     });
-
-    if (error) {
-      logger.error('telemetry.insert_failed', { reason: error.message });
-    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('telemetry.insert_exception', { reason: message });
   }
 }
 
-export interface TelemetrySummary {
-  totalAnalysis: number;
-  totalExecution: number;
-  avgExecutionTime: number;
-  dialectUsage: Record<string, number>;
-  successRate: number;
+/**
+ * Aggregate telemetry summary. Pass a `userId` to scope to one user
+ * (used by telemetry.routes.ts); omit it for an instance-wide aggregate
+ * (used by admin.routes.ts).
+ */
+export async function getTelemetrySummary(userId?: string): Promise<TelemetrySummary> {
+  try {
+    const rows = userId
+      ? await db.select().from(telemetryTable).where(eq(telemetryTable.userId, userId))
+      : await db.select().from(telemetryTable);
+
+    let totalAnalysis = 0;
+    let totalExecution = 0;
+    let sumExecTime = 0;
+    let execTimeCount = 0;
+    let successCount = 0;
+    const dialectUsage: Record<string, number> = {};
+
+    for (const row of rows) {
+      if (row.eventType === 'ANALYSIS') totalAnalysis++;
+      if (row.eventType === 'EXECUTION') totalExecution++;
+
+      if (row.executionTimeMs != null && row.eventType === 'EXECUTION') {
+        sumExecTime += row.executionTimeMs;
+        execTimeCount++;
+      }
+
+      if (row.success) successCount++;
+
+      dialectUsage[row.dialect] = (dialectUsage[row.dialect] ?? 0) + 1;
+    }
+
+    const total = totalAnalysis + totalExecution;
+    return {
+      totalAnalysis,
+      totalExecution,
+      avgExecutionTime: execTimeCount > 0 ? Math.round(sumExecTime / execTimeCount) : 0,
+      dialectUsage,
+      successRate: total > 0 ? Math.round((successCount / total) * 100) : 0,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('telemetry.summary_failed', { reason: message, userId });
+    return { totalAnalysis: 0, totalExecution: 0, avgExecutionTime: 0, dialectUsage: {}, successRate: 0 };
+  }
 }
 
 /**
- * Aggregate telemetry summary for a user.
- * Uses a single query for efficiency.
+ * Percentages (0-100, rounded) mapped from `bubble_execution_history.status`:
+ * successful←'success', failed←'error', dangerous←'killed' (sandbox killed the run
+ * for resource abuse / unsafe operation), improvable←'timeout' (ran too long — a
+ * signal the query needs optimization).
  */
-export async function getTelemetrySummary(userId: string): Promise<TelemetrySummary> {
-  const { data, error } = await supabaseAdmin
-    .from('bubble_telemetry')
-    .select('event_type, dialect, execution_time_ms, success')
-    .eq('user_id', userId);
 
-  if (error) {
-    logger.error('telemetry.summary_failed', { reason: error.message, userId });
-    return {
-      totalAnalysis: 0,
-      totalExecution: 0,
-      avgExecutionTime: 0,
-      dialectUsage: {},
-      successRate: 0,
-    };
-  }
+/** Execution-outcome breakdown for the Workspace KPI cards — scoped to one user's `bubble_execution_history`. */
+export async function getExecutionHealth(userId: string): Promise<ExecutionHealth> {
+  try {
+    const rows = await db
+      .select({ status: executionHistoryTable.status, value: rawSql<number>`count(*)` })
+      .from(executionHistoryTable)
+      .where(eq(executionHistoryTable.userId, userId))
+      .groupBy(executionHistoryTable.status);
 
-  const rows = data ?? [];
-
-  let totalAnalysis = 0;
-  let totalExecution = 0;
-  let sumExecTime = 0;
-  let execTimeCount = 0;
-  let successCount = 0;
-  const dialectUsage: Record<string, number> = {};
-
-  for (const row of rows) {
-    const eventType = row.event_type as string;
-    const dialect = row.dialect as string;
-    const execTime = row.execution_time_ms as number | null;
-    const success = row.success as boolean;
-
-    if (eventType === 'ANALYSIS') totalAnalysis++;
-    if (eventType === 'EXECUTION') totalExecution++;
-
-    if (execTime != null && eventType === 'EXECUTION') {
-      sumExecTime += execTime;
-      execTimeCount++;
+    const counts: Record<string, number> = {};
+    let total = 0;
+    for (const row of rows) {
+      counts[row.status] = Number(row.value);
+      total += Number(row.value);
     }
 
-    if (success) successCount++;
+    const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
-    dialectUsage[dialect] = (dialectUsage[dialect] ?? 0) + 1;
+    return {
+      successfulPct: pct(counts['success'] ?? 0),
+      failedPct: pct(counts['error'] ?? 0),
+      dangerousPct: pct(counts['killed'] ?? 0),
+      improvablePct: pct(counts['timeout'] ?? 0),
+      totalRuns: total,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('telemetry.execution_health_failed', { reason: message, userId });
+    return { successfulPct: 0, failedPct: 0, dangerousPct: 0, improvablePct: 0, totalRuns: 0 };
   }
+}
 
-  const total = totalAnalysis + totalExecution;
-  return {
-    totalAnalysis,
-    totalExecution,
-    avgExecutionTime: execTimeCount > 0 ? Math.round(sumExecTime / execTimeCount) : 0,
-    dialectUsage,
-    successRate: total > 0 ? Math.round((successCount / total) * 100) : 0,
-  };
+/** Daily execution counts for the last `days` days (including days with zero runs) — powers the Workspace usage-over-time chart. */
+export async function getExecutionTrend(userId: string, days = 7): Promise<ExecutionTrendPoint[]> {
+  try {
+    const since = new Date();
+    since.setUTCHours(0, 0, 0, 0);
+    since.setUTCDate(since.getUTCDate() - (days - 1));
+
+    const rows = await db
+      .select({
+        date: rawSql<string>`to_char(${executionHistoryTable.createdAt}, 'YYYY-MM-DD')`,
+        value: rawSql<number>`count(*)`,
+      })
+      .from(executionHistoryTable)
+      .where(and(eq(executionHistoryTable.userId, userId), gte(executionHistoryTable.createdAt, since)))
+      .groupBy(rawSql`to_char(${executionHistoryTable.createdAt}, 'YYYY-MM-DD')`);
+
+    const byDate = new Map(rows.map((row) => [row.date, Number(row.value)]));
+
+    const points: ExecutionTrendPoint[] = [];
+    for (let i = 0; i < days; i++) {
+      const day = new Date(since);
+      day.setUTCDate(since.getUTCDate() + i);
+      const key = day.toISOString().slice(0, 10);
+      points.push({ date: key, count: byDate.get(key) ?? 0 });
+    }
+
+    return points;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('telemetry.execution_trend_failed', { reason: message, userId });
+    return [];
+  }
 }

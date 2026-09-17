@@ -1,3 +1,4 @@
-export { SandboxService, sandboxService } from './service';
+export { checkDockerAvailable, createDockerClient, DockerSandboxExecutor, docker } from './docker-executor';
 export type { SandboxExecutor } from './executor.interface';
-export { DockerSandboxExecutor } from './docker-executor';
+export { startOrphanReaper, stopOrphanReaper, sweepOrphans } from './orphan-reaper';
+export { SandboxService, sandboxService } from './service';

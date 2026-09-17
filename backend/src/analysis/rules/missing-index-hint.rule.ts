@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule, PlanTier } from '../rule.interface';
 import type { AST, Select } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Heuristic: detects queries that filter on non-key columns without
@@ -12,7 +12,6 @@ export class MissingIndexHintRule implements AnalysisRule {
   readonly id = 'missing-index-hint';
   readonly name = 'Missing Index Hint';
   readonly description = 'Suggests indexes for filtered columns that appear unindexed';
-  readonly requiresPlan: PlanTier = 'premium';
 
   analyze(ast: AST): AnalysisIssue[] {
     const issues: AnalysisIssue[] = [];

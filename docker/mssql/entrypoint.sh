@@ -16,10 +16,8 @@ for i in {1..30}; do
   sleep 2
 done
 
-# Create database and seed data
-/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Sandbox123!" -C -i /tmp/seed.sql
-
-echo "Seed data loaded."
+# No baked-in seed data — each project's schema/rows are applied per-request by the
+# executor (container.exec, after readiness) from the project's stored schema_sql.
 
 # Keep the container running
 wait

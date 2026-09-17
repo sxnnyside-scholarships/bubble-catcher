@@ -1,26 +1,28 @@
+import { jwt } from '@elysiajs/jwt';
 import { Elysia } from 'elysia';
-import { supabaseAdmin } from '../lib/supabase';
+import { config } from '../config';
+import type { JwtPayload } from '../lib/auth';
 import { AppError } from '../lib/errors';
 
 export interface AuthContext {
   userId: string;
   email: string;
-  accessToken: string;
+  role: 'admin' | 'user';
 }
 
-/**
- * Authentication middleware that validates Supabase JWT tokens.
- * Extracts user info and attaches to request context.
- *
- * **All auth failures return 401 — never 500.**
- *
- * NOTE: .as('plugin') is required so derive/beforeHandle hooks propagate
- * to routes in the *parent* plugin that calls .use(authMiddleware).
- * Without it, Elysia >=1.1 treats plugin hooks as local-only and they
- * silently never fire for routes defined outside this plugin instance.
- */
+/** Shared JWT plugin — sign/verify with the instance's JWT_SECRET. Exported so auth.routes.ts can sign tokens. */
+export const jwtPlugin = new Elysia({ name: 'jwt-plugin' }).use(
+  jwt({
+    name: 'jwt',
+    secret: config.jwtSecret,
+    exp: config.accessTokenExpiresIn,
+  }),
+);
+
+/** All auth failures return 401, never 500. `.as('scoped')` propagates the `derive` to routes in the parent `.use(authMiddleware)` plugin. */
 export const authMiddleware = new Elysia({ name: 'auth' })
-  .derive(async ({ headers }): Promise<{ auth: AuthContext }> => {
+  .use(jwtPlugin)
+  .derive(async ({ headers, jwt }): Promise<{ auth: AuthContext }> => {
     const authHeader = headers['authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
@@ -31,35 +33,25 @@ export const authMiddleware = new Elysia({ name: 'auth' })
       throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
     }
 
-    // Defensive: validate JWT structure before sending to Supabase
-    const jwtParts = token.split('.');
-    if (jwtParts.length !== 3 || jwtParts.some((p) => p.length === 0)) {
-      throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
-    }
-
     try {
-      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+      const payload = (await jwt.verify(token)) as JwtPayload | false;
 
-      if (error || !user) {
-        throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
-      }
-
-      if (!user.email) {
+      if (!payload || !payload.sub || !payload.email || !payload.role) {
         throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401);
       }
 
       return {
         auth: {
-          userId: user.id,
-          email: user.email,
-          accessToken: token,
+          userId: payload.sub,
+          email: payload.email,
+          role: payload.role,
         },
       };
     } catch (err) {
-      /* Re-throw AppError as-is; convert any unexpected Supabase/network error to 401 */
+      /* Re-throw AppError as-is; convert any unexpected verification error to 401 */
       if (err instanceof AppError) throw err;
       const msg = err instanceof Error ? err.message : 'Authentication failed';
       throw new AppError('UNAUTHORIZED', 'UNAUTHORIZED', 401, { reason: msg });
     }
   })
-  .as('plugin');
+  .as('scoped');

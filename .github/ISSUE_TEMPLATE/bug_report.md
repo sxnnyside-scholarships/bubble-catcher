@@ -1,43 +1,27 @@
 ---
 name: Bug Report
-about: Report a bug or unexpected behavior
-title: "[BUG] "
+about: Something isn't working as expected
+title: "fix: "
 labels: bug
-assignees: ''
+assignees: ""
 ---
 
-## Description
-A clear and concise description of the bug.
+## What happened?
 
-## Steps to Reproduce
-1. Go to '...'
-2. Click on '...'
-3. Execute query '...'
-4. See error
+<!-- What did you expect? What actually happened? -->
 
-## Expected Behavior
-What you expected to happen.
+## Steps to reproduce
 
-## Actual Behavior
-What actually happened.
+1.
+2.
+3.
 
 ## Environment
-- **OS**: [e.g., macOS 13.2, Ubuntu 22.04, Windows 11]
-- **Docker version**: [e.g., 24.0.6]
-- **Node version**: [e.g., 20.10.0]
-- **Bun version**: [e.g., 1.0.22]
-- **Browser** (if frontend issue): [e.g., Chrome 120, Firefox 121]
-- **SQL dialect** (if sandbox issue): [e.g., PostgreSQL, MySQL, SQLite]
 
-## Logs
-Paste relevant logs or error messages:
+- OS:
+- Bubble Catcher version:
+- Runtime: <!-- Bun 1.4.x, Docker 24+, etc. -->
 
-```
-[paste logs here]
-```
+## Additional context
 
-## Screenshots
-If applicable, add screenshots to help explain the problem.
-
-## Additional Context
-Add any other context about the problem here.
+<!-- Logs, screenshots, or anything else that helps. Delete if not applicable. -->

@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Heuristic: detects JOIN conditions where neither side looks like a
@@ -13,8 +13,7 @@ import type { AST } from 'node-sql-parser';
 export class JoinOnNonIdRule implements AnalysisRule {
   readonly id = 'join-on-non-id';
   readonly name = 'JOIN on Non-Key Column';
-  readonly description =
-    'Detects JOIN conditions where neither column appears to be a key field';
+  readonly description = 'Detects JOIN conditions where neither column appears to be a key field';
 
   private static readonly KEY_PATTERN = /^id$|_id$|_key$|_pk$|_fk$|_ref$|^pk$|^fk$/i;
 
@@ -64,10 +63,7 @@ export class JoinOnNonIdRule implements AnalysisRule {
         const left = record['left'] as Record<string, unknown> | undefined;
         const right = record['right'] as Record<string, unknown> | undefined;
 
-        if (
-          left?.['type'] === 'column_ref' &&
-          right?.['type'] === 'column_ref'
-        ) {
+        if (left?.['type'] === 'column_ref' && right?.['type'] === 'column_ref') {
           const leftCol = String(left['column'] ?? '');
           const rightCol = String(right['column'] ?? '');
 

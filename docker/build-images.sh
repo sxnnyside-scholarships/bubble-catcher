@@ -1,36 +1,42 @@
 #!/bin/bash
-# Build all Bubble Catcher sandbox Docker images
-# Run from the docker/ directory
+# Usage: ./build-images.sh [dialect ...]   (default: build all; see docker/README.md)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "🫧 Building Bubble Catcher sandbox images..."
+VERSION_TAG="1.0.0"
+ALL_DIALECTS=(mysql mariadb postgres sqlite libsql mssql)
+
+if [ "$#" -eq 0 ]; then
+  DIALECTS=("${ALL_DIALECTS[@]}")
+else
+  DIALECTS=("$@")
+fi
+
+echo "🫧 Building Bubble Catcher sandbox images: ${DIALECTS[*]}"
 echo ""
 
-echo "📦 Building MySQL sandbox..."
-docker build -f mysql/Dockerfile -t bubble-catcher-mysql:latest -t bubble-catcher-mysql:1.0.0 .
+for dialect in "${DIALECTS[@]}"; do
+  valid=false
+  for d in "${ALL_DIALECTS[@]}"; do
+    [ "$d" = "$dialect" ] && valid=true && break
+  done
+  if [ "$valid" = false ]; then
+    echo "❌ Unknown dialect: $dialect (expected one of: ${ALL_DIALECTS[*]})" >&2
+    exit 1
+  fi
 
-echo ""
-echo "📦 Building MariaDB sandbox..."
-docker build -f mariadb/Dockerfile -t bubble-catcher-mariadb:latest -t bubble-catcher-mariadb:1.0.0 .
+  echo "📦 Building $dialect sandbox..."
+  docker build -f "$dialect/Dockerfile" \
+    -t "bubble-catcher-$dialect:latest" \
+    -t "bubble-catcher-$dialect:$VERSION_TAG" \
+    .
+  echo ""
+done
 
-echo ""
-echo "📦 Building PostgreSQL sandbox..."
-docker build -f postgres/Dockerfile -t bubble-catcher-postgres:latest -t bubble-catcher-postgres:1.0.0 .
-
-echo ""
-echo "📦 Building SQLite sandbox..."
-docker build -f sqlite/Dockerfile -t bubble-catcher-sqlite:latest -t bubble-catcher-sqlite:1.0.0 .
-
-echo ""
-echo "📦 Building MSSQL sandbox..."
-docker build -f mssql/Dockerfile -t bubble-catcher-mssql:latest -t bubble-catcher-mssql:1.0.0 .
-
-echo ""
-echo "✅ All sandbox images built successfully!"
+echo "✅ Done. Set SANDBOX_IMAGE_TAG=$VERSION_TAG in backend/.env to run these (it's already the default)."
 echo ""
 echo "Images:"
 docker images | grep bubble-catcher

@@ -1,32 +1,25 @@
 ---
 name: Feature Request
-about: Suggest a new feature or improvement
-title: "[FEATURE] "
+about: A proposal for new functionality or an improvement
+title: "feat: "
 labels: enhancement
-assignees: ''
+assignees: ""
 ---
 
-## Problem Statement
-Is your feature request related to a problem? Please describe.
-Example: "I'm frustrated when [...]"
+## What are you proposing?
 
-## Proposed Solution
-A clear and concise description of what you want to happen.
+<!-- Describe the feature. One paragraph is enough to start. -->
 
-## Alternative Solutions
-Describe any alternative solutions or features you've considered.
+## Why does this belong in Bubble Catcher?
 
-## Use Case
-Describe the use case or scenario where this feature would be valuable.
+<!-- How does it fit the project's scope and philosophy?
+     If it's a rough idea that needs more thought, say so — that's fine. -->
 
-## Benefits
-Who would benefit from this feature and how?
+## Possible implementation
 
-## Implementation Notes (optional)
-Any technical considerations, constraints, or suggestions for implementation.
+<!-- Optional. If you have a direction in mind, sketch it here.
+     Delete if you don't. -->
 
-## Additional Context
-Add any other context, screenshots, or examples about the feature request here.
+## Alternatives considered
 
-## Related Issues
-Link to any related issues or discussions.
+<!-- Optional. Other approaches you ruled out and why. Delete if not applicable. -->

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "uniq_bubble_projects_user_dialect" ON "bubble_projects" USING btree ("user_id","dialect") WHERE "bubble_projects"."deleted_at" IS NULL;

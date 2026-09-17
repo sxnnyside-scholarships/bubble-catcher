@@ -1,3 +1,5 @@
+import type { Dialect } from './dialect';
+
 export type AnalysisSeverity = 'info' | 'warning' | 'error' | 'critical';
 
 export interface AnalysisIssue {
@@ -12,17 +14,15 @@ export interface AnalysisIssue {
 
 export interface AnalysisResult {
   success: boolean;
-  dialect: string;
+  dialect: Dialect;
   originalQuery: string;
   issues: AnalysisIssue[];
   ast: unknown;
   parsedSuccessfully: boolean;
   parseError: string | null;
-  /** Rule IDs that require a higher plan — frontend shows locked badges */
-  lockedRuleIds?: string[];
 }
 
 export interface AnalyzeQueryPayload {
   sql: string;
-  dialect: string;
+  dialect: Dialect;
 }

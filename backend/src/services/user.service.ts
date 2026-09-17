@@ -1,56 +1,44 @@
-import { createUserClient, supabaseAdmin } from '../lib/supabase';
+import type { UpdateUserPreferencesPayload, UserProfile } from '@shared/types';
+import { and, eq } from 'drizzle-orm';
+import { db } from '../db/client';
+import { usersTable } from '../db/schema';
+import { notDeleted } from '../db/soft-delete';
+import { toUserProfileDto } from '../dto/user.dto';
 import { AppError } from '../lib/errors';
-import type { UserProfile, UpdateUserPreferencesPayload } from '@shared/types';
 
 export class UserService {
-  /** Get user profile (assumes profile exists via ensureProfileMiddleware) */
   async getProfile(userId: string): Promise<UserProfile> {
-    const { data, error } = await supabaseAdmin
-      .from('bubble_profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    const [row] = await db
+      .select()
+      .from(usersTable)
+      .where(and(eq(usersTable.id, userId), notDeleted(usersTable.deletedAt)));
 
-    if (error || !data) {
-      throw AppError.notFound('NOT_FOUND');
-    }
-
-    return mapProfileRow(data);
+    if (!row) throw AppError.notFound('NOT_FOUND');
+    return toUserProfileDto(row);
   }
 
-  /** Update user preferences */
-  async updatePreferences(
-    userId: string,
-    payload: UpdateUserPreferencesPayload,
-    accessToken: string,
-  ): Promise<UserProfile> {
-    const client = createUserClient(accessToken);
-    const updateData: Record<string, unknown> = {};
+  async updatePreferences(userId: string, payload: UpdateUserPreferencesPayload): Promise<UserProfile> {
+    const [current] = await db
+      .select()
+      .from(usersTable)
+      .where(and(eq(usersTable.id, userId), notDeleted(usersTable.deletedAt)));
 
-    if (payload.preferredTheme !== undefined) updateData['preferred_theme'] = payload.preferredTheme;
-    if (payload.preferredLocale !== undefined) updateData['preferred_locale'] = payload.preferredLocale;
+    if (!current) throw AppError.notFound('NOT_FOUND');
 
-    const { data, error } = await client
-      .from('bubble_profiles')
-      .update(updateData)
-      .eq('id', userId)
-      .select('*')
-      .single();
+    const [row] = await db
+      .update(usersTable)
+      .set({
+        preferences: {
+          theme: payload.preferredTheme ?? current.preferences.theme,
+          locale: payload.preferredLocale ?? current.preferences.locale,
+        },
+      })
+      .where(eq(usersTable.id, userId))
+      .returning();
 
-    if (error || !data) throw AppError.internal('INTERNAL_ERROR');
-    return mapProfileRow(data);
+    if (!row) throw AppError.internal('INTERNAL_ERROR');
+    return toUserProfileDto(row);
   }
-}
-
-function mapProfileRow(row: Record<string, unknown>): UserProfile {
-  return {
-    id: row['id'] as string,
-    email: row['email'] as string,
-    plan: row['plan'] as UserProfile['plan'],
-    preferredTheme: row['preferred_theme'] as UserProfile['preferredTheme'],
-    preferredLocale: row['preferred_locale'] as UserProfile['preferredLocale'],
-    createdAt: row['created_at'] as string,
-  };
 }
 
 export const userService = new UserService();

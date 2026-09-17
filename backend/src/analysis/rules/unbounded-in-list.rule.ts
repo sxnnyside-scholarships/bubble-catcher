@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule, PlanTier } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects IN clauses with a large number of literal values,
@@ -12,7 +12,6 @@ export class UnboundedInListRule implements AnalysisRule {
   readonly id = 'unbounded-in-list';
   readonly name = 'Large IN List';
   readonly description = 'Detects IN clauses with many literal values';
-  readonly requiresPlan: PlanTier = 'premium';
 
   private static readonly THRESHOLD = 10;
 
@@ -44,8 +43,7 @@ export class UnboundedInListRule implements AnalysisRule {
                 'Large IN (...) lists can overwhelm the query optimizer and cause poor performance. ' +
                 'Consider using a temporary table, a JOIN with a values list, or batching the values ' +
                 'into multiple smaller queries for better performance.',
-              suggestedRewrite:
-                'SELECT ... FROM table INNER JOIN (VALUES (...)) AS v(id) ON table.id = v.id',
+              suggestedRewrite: 'SELECT ... FROM table INNER JOIN (VALUES (...)) AS v(id) ON table.id = v.id',
               line: null,
               column: null,
             });

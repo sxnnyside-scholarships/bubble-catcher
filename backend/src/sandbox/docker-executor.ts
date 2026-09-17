@@ -1,32 +1,41 @@
+import type { ExecutionResult, SupportedDialect } from '@shared/types';
 import Docker from 'dockerode';
-import type { ExecutionResult } from '@shared/types';
-import type { SupportedDialect } from '@shared/types';
+import { config } from '../config';
 import type { SandboxExecutor } from './executor.interface';
+import { buildSingleFileTar } from './tar';
 
 /**
- * Resolve Docker socket path.
- * Docker Desktop on macOS uses ~/Library/Containers/… or ~/.docker/run/docker.sock.
- * Falls back to /var/run/docker.sock on Linux.
+ * Resolve Docker connection.
+ * Supports:
+ * - TCP / HTTP proxy URLs (e.g. tcp://docker-proxy:2375 or http://docker-proxy:2375)
+ * - UNIX domain sockets from DOCKER_HOST (e.g. unix:///var/run/docker.sock)
+ * - Standard macOS & Linux fallback socket locations
  */
-function resolveDockerSocket(): string {
+export function createDockerClient(): Docker {
   const fromEnv = process.env['DOCKER_HOST'];
-  if (fromEnv) return fromEnv.replace('unix://', '');
+  if (fromEnv) {
+    if (fromEnv.startsWith('tcp://') || fromEnv.startsWith('http://')) {
+      const parsed = new URL(fromEnv.replace('tcp://', 'http://'));
+      return new Docker({
+        host: parsed.hostname,
+        port: Number(parsed.port) || 2375,
+      });
+    }
+    return new Docker({ socketPath: fromEnv.replace('unix://', '') });
+  }
 
-  const candidates = [
-    `${process.env['HOME']}/.docker/run/docker.sock`,
-    '/var/run/docker.sock',
-  ];
-  return candidates[0]; // dockerode resolves symlinks internally
+  const candidates = [`${process.env['HOME']}/.docker/run/docker.sock`, '/var/run/docker.sock'];
+  return new Docker({ socketPath: candidates[0] });
 }
 
-const docker = new Docker({ socketPath: resolveDockerSocket() });
+export const docker = createDockerClient();
 
 /** Cache Docker availability to avoid checking every request */
 let dockerAvailable: boolean | null = null;
 let dockerCheckTime = 0;
 const DOCKER_CHECK_TTL_MS = 30_000; // re-check every 30s
 
-async function checkDockerAvailable(): Promise<boolean> {
+export async function checkDockerAvailable(): Promise<boolean> {
   const now = Date.now();
   if (dockerAvailable !== null && now - dockerCheckTime < DOCKER_CHECK_TTL_MS) {
     return dockerAvailable;
@@ -64,11 +73,24 @@ interface DialectConfig {
   /** Whether this dialect requires a running database server */
   serverBased: boolean;
   /**
-   * Build the command to execute the user query.
-   * For server-based dialects this runs inside container.exec().
-   * For non-server dialects this becomes the container Cmd.
+   * argv to run the query. Server-based dialects pass SQL as a single argv
+   * element to container.exec(), never through a shell. Non-server dialects
+   * ignore the `sql` param — the query is written into the container as
+   * `/tmp/query.sql` before start (see executeNonServer), never interpolated.
+   * `database` selects the project's own database inside the shared server
+   * container (see lib/project-db.ts) — non-server dialects ignore it too.
    */
-  buildCommand: (sql: string) => string[];
+  buildCommand: (sql: string, database: string) => string[];
+  /** Server-based only: idempotent "create this project's database if it doesn't exist yet" command,
+   * run once per query before `buildCommand`'s query (cheap — a single conditional statement). */
+  ensureDatabaseCommand?: (database: string) => string[];
+  /** Server-based only: command to drop the project's database on project deletion */
+  dropDatabaseCommand?: (database: string) => string[];
+  /** Server-based only: named Docker volume mount for persistent data across restarts */
+  dataVolume?: {
+    volumeName: string;
+    containerPath: string;
+  };
   /** Healthcheck command (server-based only) */
   healthCheck: string[];
   /** Max seconds to wait for DB readiness */
@@ -86,15 +108,14 @@ interface DialectConfig {
 const DIALECT_CONFIGS: Record<SupportedDialect, DialectConfig> = {
   /* ── SQLite ─────────────────────────────────────────────────────────── */
   sqlite: {
-    image: 'bubble-catcher-sqlite:latest',
+    image: 'bubble-catcher-sqlite',
     env: [],
     serverBased: false,
-    // Use :memory: so we never hit filesystem permission issues.
-    // We pipe the seed + user query via a shell command.
-    buildCommand: (sql) => [
-      'sh', '-c',
-      `cat /tmp/seed.sql - <<'__END_SQL__' | sqlite3 -header -separator '\t' :memory:\n${sql}\n__END_SQL__`,
-    ],
+    // :memory: avoids filesystem permission issues. Reads the query from
+    // /tmp/query.sql (written via putArchive before start), not stdin or
+    // shell interpolation — see executeNonServer. The image's ENTRYPOINT is
+    // already `["sh","-c"]`, so Cmd is the single script string, not another `sh -c` pair.
+    buildCommand: () => ["cat /tmp/seed.sql /tmp/query.sql | sqlite3 -header -separator '\t' :memory:"],
     healthCheck: [],
     readinessTimeoutSec: 0,
     readinessPollMs: 0,
@@ -102,16 +123,73 @@ const DIALECT_CONFIGS: Record<SupportedDialect, DialectConfig> = {
     parseOutput: parseTsvOutput,
   },
 
+  /* ── libSQL ─────────────────────────────────────────────────────────── */
+  libsql: {
+    image: 'bubble-catcher-libsql',
+    env: [],
+    serverBased: false,
+    // The image's ENTRYPOINT (docker/libsql/run.ts) reads seed + /tmp/query.sql itself; no Cmd needed.
+    buildCommand: () => [],
+    healthCheck: [],
+    readinessTimeoutSec: 0,
+    readinessPollMs: 0,
+    readonlyRootfs: false,
+    parseOutput: parseTsvOutput,
+  },
+
   /* ── PostgreSQL ─────────────────────────────────────────────────────── */
   postgresql: {
-    image: 'bubble-catcher-postgres:latest',
+    image: 'bubble-catcher-postgres',
     env: ['POSTGRES_PASSWORD=sandbox', 'POSTGRES_DB=sandbox'],
     serverBased: true,
-    buildCommand: (sql) => [
-      'psql', '-h', '127.0.0.1', '-U', 'postgres', '-d', 'sandbox',
-      '-c', sql,
-      '--no-align', '-P', 'tuples_only=off', '-P', 'fieldsep=\t', '-P', 'footer=off',
+    buildCommand: (sql, database) => [
+      'psql',
+      '-h',
+      '127.0.0.1',
+      '-U',
+      'postgres',
+      '-d',
+      database,
+      '-c',
+      sql,
+      '--no-align',
+      '-P',
+      'tuples_only=off',
+      '-P',
+      'fieldsep=\t',
+      '-P',
+      'footer=off',
     ],
+    /* Postgres has no `CREATE DATABASE IF NOT EXISTS` — this runs unconditionally and
+     * executeInContainer() treats the resulting "already exists" error as success (see
+     * ALREADY_EXISTS_PATTERNS), which is simpler and more portable than psql's `\gexec` meta-command
+     * (that requires being read as a script, not a single `-c` argument — verified the hard way). */
+    ensureDatabaseCommand: (database) => [
+      'psql',
+      '-h',
+      '127.0.0.1',
+      '-U',
+      'postgres',
+      '-d',
+      'postgres',
+      '-c',
+      `CREATE DATABASE "${database}"`,
+    ],
+    dropDatabaseCommand: (database) => [
+      'psql',
+      '-h',
+      '127.0.0.1',
+      '-U',
+      'postgres',
+      '-d',
+      'postgres',
+      '-c',
+      `DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`,
+    ],
+    dataVolume: {
+      volumeName: 'bubble-catcher-data-postgresql',
+      containerPath: '/var/lib/postgresql/data',
+    },
     healthCheck: ['pg_isready', '-h', '127.0.0.1', '-U', 'postgres'],
     readinessTimeoutSec: 30,
     readinessPollMs: 500,
@@ -122,13 +200,46 @@ const DIALECT_CONFIGS: Record<SupportedDialect, DialectConfig> = {
 
   /* ── MySQL ──────────────────────────────────────────────────────────── */
   mysql: {
-    image: 'bubble-catcher-mysql:latest',
+    image: 'bubble-catcher-mysql',
     env: ['MYSQL_ROOT_PASSWORD=sandbox', 'MYSQL_DATABASE=sandbox'],
     serverBased: true,
-    buildCommand: (sql) => [
-      'mysql', '-h', '127.0.0.1', '-u', 'root', '-psandbox', 'sandbox',
-      '-e', sql, '--batch', '--raw',
+    buildCommand: (sql, database) => [
+      'mysql',
+      '-h',
+      '127.0.0.1',
+      '-u',
+      'root',
+      '-psandbox',
+      database,
+      '-e',
+      sql,
+      '--batch',
+      '--raw',
     ],
+    ensureDatabaseCommand: (database) => [
+      'mysql',
+      '-h',
+      '127.0.0.1',
+      '-u',
+      'root',
+      '-psandbox',
+      '-e',
+      `CREATE DATABASE IF NOT EXISTS \`${database}\``,
+    ],
+    dropDatabaseCommand: (database) => [
+      'mysql',
+      '-h',
+      '127.0.0.1',
+      '-u',
+      'root',
+      '-psandbox',
+      '-e',
+      `DROP DATABASE IF EXISTS \`${database}\``,
+    ],
+    dataVolume: {
+      volumeName: 'bubble-catcher-data-mysql',
+      containerPath: '/var/lib/mysql',
+    },
     healthCheck: ['mysqladmin', 'ping', '-h', '127.0.0.1', '-u', 'root', '-psandbox', '--silent'],
     readinessTimeoutSec: 60,
     readinessPollMs: 1000,
@@ -138,13 +249,46 @@ const DIALECT_CONFIGS: Record<SupportedDialect, DialectConfig> = {
 
   /* ── MariaDB ────────────────────────────────────────────────────────── */
   mariadb: {
-    image: 'bubble-catcher-mariadb:latest',
+    image: 'bubble-catcher-mariadb',
     env: ['MYSQL_ROOT_PASSWORD=sandbox', 'MYSQL_DATABASE=sandbox'],
     serverBased: true,
-    buildCommand: (sql) => [
-      'mariadb', '-h', '127.0.0.1', '-u', 'root', '-psandbox', 'sandbox',
-      '-e', sql, '--batch', '--raw',
+    buildCommand: (sql, database) => [
+      'mariadb',
+      '-h',
+      '127.0.0.1',
+      '-u',
+      'root',
+      '-psandbox',
+      database,
+      '-e',
+      sql,
+      '--batch',
+      '--raw',
     ],
+    ensureDatabaseCommand: (database) => [
+      'mariadb',
+      '-h',
+      '127.0.0.1',
+      '-u',
+      'root',
+      '-psandbox',
+      '-e',
+      `CREATE DATABASE IF NOT EXISTS \`${database}\``,
+    ],
+    dropDatabaseCommand: (database) => [
+      'mariadb',
+      '-h',
+      '127.0.0.1',
+      '-u',
+      'root',
+      '-psandbox',
+      '-e',
+      `DROP DATABASE IF EXISTS \`${database}\``,
+    ],
+    dataVolume: {
+      volumeName: 'bubble-catcher-data-mariadb',
+      containerPath: '/var/lib/mysql',
+    },
     healthCheck: ['mariadb-admin', 'ping', '-h', '127.0.0.1', '-u', 'root', '-psandbox', '--silent'],
     readinessTimeoutSec: 60,
     readinessPollMs: 1000,
@@ -154,19 +298,65 @@ const DIALECT_CONFIGS: Record<SupportedDialect, DialectConfig> = {
 
   /* ── MSSQL ──────────────────────────────────────────────────────────── */
   mssql: {
-    image: 'bubble-catcher-mssql:latest',
+    image: 'bubble-catcher-mssql',
     env: ['ACCEPT_EULA=Y', 'SA_PASSWORD=Sandbox123!', 'MSSQL_PID=Developer'],
     serverBased: true,
-    buildCommand: (sql) => [
+    buildCommand: (sql, database) => [
       '/opt/mssql-tools18/bin/sqlcmd',
-      '-S', '127.0.0.1', '-U', 'sa', '-P', 'Sandbox123!',
-      '-d', 'sandbox', '-Q', sql,
-      '-s', '\t', '-W', '-C',
+      '-S',
+      '127.0.0.1',
+      '-U',
+      'sa',
+      '-P',
+      'Sandbox123!',
+      '-d',
+      database,
+      '-Q',
+      sql,
+      '-s',
+      '\t',
+      '-W',
+      '-C',
     ],
+    ensureDatabaseCommand: (database) => [
+      '/opt/mssql-tools18/bin/sqlcmd',
+      '-S',
+      '127.0.0.1',
+      '-U',
+      'sa',
+      '-P',
+      'Sandbox123!',
+      '-Q',
+      `IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '${database}') CREATE DATABASE [${database}]`,
+      '-C',
+    ],
+    dropDatabaseCommand: (database) => [
+      '/opt/mssql-tools18/bin/sqlcmd',
+      '-S',
+      '127.0.0.1',
+      '-U',
+      'sa',
+      '-P',
+      'Sandbox123!',
+      '-Q',
+      `IF EXISTS (SELECT * FROM sys.databases WHERE name = '${database}') BEGIN ALTER DATABASE [${database}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [${database}]; END`,
+      '-C',
+    ],
+    dataVolume: {
+      volumeName: 'bubble-catcher-data-mssql',
+      containerPath: '/var/opt/mssql/data',
+    },
     healthCheck: [
       '/opt/mssql-tools18/bin/sqlcmd',
-      '-S', '127.0.0.1', '-U', 'sa', '-P', 'Sandbox123!',
-      '-Q', 'SELECT 1', '-C',
+      '-S',
+      '127.0.0.1',
+      '-U',
+      'sa',
+      '-P',
+      'Sandbox123!',
+      '-Q',
+      'SELECT 1',
+      '-C',
     ],
     readinessTimeoutSec: 45,
     readinessPollMs: 2000,
@@ -211,17 +401,8 @@ function parseMssqlOutput(stdout: string): ParsedOutput {
 /* ───────────────────────── Executor ─────────────────────────────────── */
 
 /**
- * Docker-based sandbox executor.
- *
- * **Non-server dialects** (SQLite): creates a container whose Cmd runs the
- * query directly, waits for it to exit, collects output, removes it.
- *
- * **Server-based dialects** (Postgres, MySQL, MariaDB, MSSQL): creates a
- * container with the default entrypoint so the database server starts,
- * polls for readiness via `container.exec()`, then executes the user query
- * via a second `container.exec()`, collects output, and removes the
- * container. This avoids the previous bug where the Cmd override prevented
- * the database from ever starting.
+ * Non-server dialects (SQLite, libSQL): query written as `/tmp/query.sql` before start, container runs, output collected, removed.
+ * Server-based dialects: container starts with the image's default entrypoint, polls readiness, then runs the query via `container.exec()`.
  */
 export class DockerSandboxExecutor implements SandboxExecutor {
   readonly dialect: SupportedDialect;
@@ -231,10 +412,10 @@ export class DockerSandboxExecutor implements SandboxExecutor {
   constructor(dialect: SupportedDialect) {
     this.dialect = dialect;
     this.config = DIALECT_CONFIGS[dialect];
-    this.imageName = this.config.image;
+    this.imageName = `${this.config.image}:${config.sandboxImageTag}`;
   }
 
-  async execute(sql: string, timeoutMs: number, memoryLimit: string): Promise<ExecutionResult> {
+  async execute(sql: string, timeoutMs: number, memoryLimit: string, seedSql?: string): Promise<ExecutionResult> {
     const startTime = Date.now();
 
     /* ── Pre-flight: Docker daemon reachable? ──────────────────── */
@@ -253,14 +434,14 @@ export class DockerSandboxExecutor implements SandboxExecutor {
     }
 
     /* ── Pre-flight: image exists? ─────────────────────────────── */
-    const imageOk = await checkImageExists(this.config.image);
+    const imageOk = await checkImageExists(this.imageName);
     if (!imageOk) {
       return {
         success: false,
         status: 'error',
         executionTimeMs: Date.now() - startTime,
         error: {
-          message: `[${this.dialect}] Docker image '${this.config.image}' not found. Run: cd docker && ./build-images.sh`,
+          message: `[${this.dialect}] Docker image '${this.imageName}' not found. Run: cd docker && ./build-images.sh (or set SANDBOX_IMAGE_TAG to match a tag you've built).`,
           code: 'IMAGE_NOT_FOUND',
         },
         executedAt: new Date().toISOString(),
@@ -269,13 +450,26 @@ export class DockerSandboxExecutor implements SandboxExecutor {
 
     try {
       if (this.config.serverBased) {
-        return await this.executeServerBased(sql, timeoutMs, memoryLimit, startTime);
+        /* Server-based dialects (postgres/mysql/mariadb/mssql) no longer spin up a fresh container per
+         * query — they run against the admin-started, long-lived container via executeInContainer().
+         * Reaching here means a caller forgot to route through sandbox/lifecycle.service.ts. */
+        return {
+          success: false,
+          status: 'error',
+          executionTimeMs: Date.now() - startTime,
+          error: {
+            message: `[${this.dialect}] This engine requires a running admin-managed container — use executeInContainer, not execute().`,
+            code: 'INTERNAL_ERROR',
+          },
+          executedAt: new Date().toISOString(),
+        };
       }
-      return await this.executeNonServer(sql, timeoutMs, memoryLimit, startTime);
+      return await this.executeNonServer(sql, timeoutMs, memoryLimit, startTime, seedSql);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       /* Classify the error */
-      const isDockerError = message.includes('connect ENOENT') ||
+      const isDockerError =
+        message.includes('connect ENOENT') ||
         message.includes('connect ECONNREFUSED') ||
         message.includes('socket hang up') ||
         message.includes('Was there a typo');
@@ -300,24 +494,31 @@ export class DockerSandboxExecutor implements SandboxExecutor {
     }
   }
 
-  /* ── Non-server execution (SQLite) ──────────────────────────────── */
+  /* ── Non-server execution (SQLite, libSQL) ──────────────────────── */
 
   private async executeNonServer(
     sql: string,
     timeoutMs: number,
     memoryLimit: string,
     startTime: number,
+    seedSql?: string,
   ): Promise<ExecutionResult> {
     let container: Docker.Container | null = null;
     try {
       container = await docker.createContainer({
-        Image: this.config.image,
+        Image: this.imageName,
         Env: this.config.env,
-        Cmd: this.config.buildCommand(sql),
+        Cmd: this.config.buildCommand(sql, ''),
+        Labels: {
+          'bubble-catcher.managed': 'true',
+          'bubble-catcher.role': 'ephemeral-query',
+          'bubble-catcher.dialect': this.dialect,
+          'bubble-catcher.created-at': String(Date.now()),
+        },
         HostConfig: {
           Memory: this.parseMemoryLimit(memoryLimit),
           MemorySwap: this.parseMemoryLimit(memoryLimit),
-          NanoCpus: 500_000_000, // 0.5 CPU
+          NanoCpus: this.cpuLimitNanoCpus(),
           NetworkMode: 'none',
           ReadonlyRootfs: this.config.readonlyRootfs,
           SecurityOpt: ['no-new-privileges'],
@@ -328,12 +529,26 @@ export class DockerSandboxExecutor implements SandboxExecutor {
         StopTimeout: Math.ceil(timeoutMs / 1000),
       });
 
+      /*
+       * Write the query as a file before starting the container, instead of
+       * streaming it over stdin: a Docker `attach()` stdin half-close
+       * (`.end()`) does not reliably signal EOF to the container process on
+       * every Docker Desktop setup, which silently hangs execution until
+       * timeout. A file has no such ambiguity.
+       */
+      await container.putArchive(buildSingleFileTar('query.sql', sql), { path: '/tmp' });
+      /* Always overwrite the image's baked-in demo seed — an empty project must run against an empty
+       * database, not the leftover demo fixture. */
+      await container.putArchive(buildSingleFileTar('seed.sql', seedSql ?? ''), { path: '/tmp' });
       await container.start();
 
-      const result = await Promise.race([
-        this.waitForContainerExit(container),
-        this.timeoutPromise(timeoutMs),
-      ]);
+      const withExitCode = container.wait().then(async (inspection) => {
+        const logs = (await container!.logs({ stdout: true, stderr: true })) as unknown as Buffer;
+        const { stdout, stderr } = this.demuxBuffer(logs);
+        return { stdout, stderr, exitCode: inspection.StatusCode ?? 0 } satisfies ContainerExitResult;
+      });
+
+      const result = await Promise.race([withExitCode, this.timeoutPromise(timeoutMs)]);
 
       const executionTimeMs = Date.now() - startTime;
 
@@ -345,7 +560,10 @@ export class DockerSandboxExecutor implements SandboxExecutor {
           success: false,
           status: 'timeout',
           executionTimeMs,
-          error: { message: `[${this.dialect}] Query execution exceeded ${timeoutMs}ms timeout`, code: 'QUERY_TIMEOUT' },
+          error: {
+            message: `[${this.dialect}] Query execution exceeded ${timeoutMs}ms timeout`,
+            code: 'QUERY_TIMEOUT',
+          },
           containerId: cid,
           executedAt: new Date().toISOString(),
         };
@@ -358,7 +576,10 @@ export class DockerSandboxExecutor implements SandboxExecutor {
           success: false,
           status: 'error',
           executionTimeMs,
-          error: { message: `[${this.dialect}] ${stderr || `Process exited with code ${exitCode}`}`, code: exitCode !== 0 ? `EXIT_${exitCode}` : 'SQL_ERROR' },
+          error: {
+            message: `[${this.dialect}] ${stderr || `Process exited with code ${exitCode}`}`,
+            code: exitCode !== 0 ? `EXIT_${exitCode}` : 'SQL_ERROR',
+          },
           containerId: container.id,
           executedAt: new Date().toISOString(),
         };
@@ -380,80 +601,173 @@ export class DockerSandboxExecutor implements SandboxExecutor {
     }
   }
 
-  /* ── Server-based execution (Postgres, MySQL, MariaDB, MSSQL) ────── */
+  /* ── Persistent server containers (Postgres, MySQL, MariaDB, MSSQL) ──────
+   * Admin-managed: one long-lived container per dialect, started/stopped explicitly (see
+   * sandbox/lifecycle.service.ts) instead of created/destroyed per query. Every project gets its own
+   * database inside that one running server (see lib/project-db.ts), so this container serves every
+   * user concurrently without paying the server-boot cost on each request. */
 
-  private async executeServerBased(
-    sql: string,
-    timeoutMs: number,
-    memoryLimit: string,
-    startTime: number,
-  ): Promise<ExecutionResult> {
-    let container: Docker.Container | null = null;
+  /** Creates and starts the long-lived container for this dialect, waiting for the DB to accept
+   * connections before returning. Throws on failure — the caller (lifecycle service) decides how to
+   * surface that to the admin. */
+  async startPersistent(memoryLimit: string): Promise<{ containerId: string }> {
+    if (!this.config.serverBased) {
+      throw new Error(`[${this.dialect}] is not a server-based dialect — nothing to start.`);
+    }
+
+    const dockerOk = await checkDockerAvailable();
+    if (!dockerOk) throw new Error(`[${this.dialect}] Docker is not running.`);
+
+    const imageOk = await checkImageExists(this.imageName);
+    if (!imageOk) {
+      throw new Error(
+        `[${this.dialect}] Docker image '${this.imageName}' not found. Run: cd docker && ./build-images.sh`,
+      );
+    }
+
+    const binds = this.config.dataVolume
+      ? [`${this.config.dataVolume.volumeName}:${this.config.dataVolume.containerPath}`]
+      : undefined;
+
+    const container = await docker.createContainer({
+      Image: this.imageName,
+      Env: this.config.env,
+      Labels: {
+        'bubble-catcher.managed': 'true',
+        'bubble-catcher.role': 'persistent-engine',
+        'bubble-catcher.dialect': this.dialect,
+        'bubble-catcher.started-at': String(Date.now()),
+      },
+      HostConfig: {
+        Memory: this.parseMemoryLimit(memoryLimit),
+        MemorySwap: this.parseMemoryLimit(memoryLimit),
+        NanoCpus: this.cpuLimitNanoCpus(),
+        NetworkMode: 'none',
+        ReadonlyRootfs: false,
+        SecurityOpt: ['no-new-privileges'],
+        Tmpfs: this.config.tmpfs,
+        Binds: binds,
+      },
+      NetworkDisabled: true,
+    });
+
     try {
-      /* 1. Create and start container with DEFAULT entrypoint (DB server starts) */
-      container = await docker.createContainer({
-        Image: this.config.image,
-        Env: this.config.env,
-        /* No Cmd override — use image's default entrypoint/cmd */
-        HostConfig: {
-          Memory: this.parseMemoryLimit(memoryLimit),
-          MemorySwap: this.parseMemoryLimit(memoryLimit),
-          NanoCpus: 500_000_000,
-          NetworkMode: 'none',
-          ReadonlyRootfs: false, // server engines need writable fs
-          SecurityOpt: ['no-new-privileges'],
-          Tmpfs: this.config.tmpfs,
-        },
-        NetworkDisabled: true,
-      });
-
       await container.start();
 
-      /* 2. Wait for DB readiness */
-      const readinessDeadline = Date.now() + (this.config.readinessTimeoutSec * 1000);
+      const readinessDeadline = Date.now() + this.config.readinessTimeoutSec * 1000;
       const ready = await this.waitForReadiness(container, readinessDeadline);
-
       if (!ready) {
-        const cid = container.id;
-        await this.forceRemoveContainer(container);
-        container = null;
-        return {
-          success: false,
-          status: 'error',
-          executionTimeMs: Date.now() - startTime,
-          error: { message: `[${this.dialect}] Database server failed to become ready within ${this.config.readinessTimeoutSec}s`, code: 'DB_NOT_READY' },
-          containerId: cid,
-          executedAt: new Date().toISOString(),
-        };
+        throw new Error(`Database server failed to become ready within ${this.config.readinessTimeoutSec}s`);
       }
 
-      /* 3. Execute user query via container.exec() */
-      const queryCmd = this.config.buildCommand(sql);
+      return { containerId: container.id };
+    } catch (err) {
+      await this.forceRemoveContainer(container);
+      throw err;
+    }
+  }
+
+  /** Stops and removes a persistent container by id — a no-op (not an error) if it's already gone. */
+  async stopPersistent(containerId: string): Promise<void> {
+    const container = docker.getContainer(containerId);
+    await this.forceRemoveContainer(container);
+  }
+
+  /** Drops a project's database inside the persistent container (used during project deletion). */
+  async dropDatabaseInContainer(containerId: string, database: string): Promise<void> {
+    if (!this.config.dropDatabaseCommand) return;
+    const container = docker.getContainer(containerId);
+    try {
+      await this.execInContainer(container, this.config.dropDatabaseCommand(database));
+    } catch (err) {
+      console.warn(`[DockerSandboxExecutor] Failed to drop database ${database} in ${this.dialect}:`, err);
+    }
+  }
+
+  /** Used by lifecycle.service.ts to self-heal: if the DB thinks an engine is running but the
+   * container is actually gone (host restart, manual `docker rm`, OOM kill), fall back to `stopped`. */
+  async isContainerAlive(containerId: string): Promise<boolean> {
+    try {
+      const info = await docker.getContainer(containerId).inspect();
+      return info.State.Running;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Runs `sql` against `database` inside the given already-running container — no create/start/stop,
+   * that's the whole point. Ensures the project's database exists first (idempotent, cheap). */
+  async executeInContainer(
+    containerId: string,
+    sql: string,
+    timeoutMs: number,
+    database: string,
+  ): Promise<ExecutionResult> {
+    const startTime = Date.now();
+    const container = docker.getContainer(containerId);
+
+    try {
+      if (this.config.ensureDatabaseCommand) {
+        const ensureResult = await Promise.race([
+          this.execInContainer(container, this.config.ensureDatabaseCommand(database)),
+          this.timeoutPromise(timeoutMs),
+        ]);
+
+        if (ensureResult === 'timeout') {
+          return {
+            success: false,
+            status: 'timeout',
+            executionTimeMs: Date.now() - startTime,
+            error: { message: `[${this.dialect}] Preparing the project database timed out`, code: 'QUERY_TIMEOUT' },
+            containerId,
+            executedAt: new Date().toISOString(),
+          };
+        }
+
+        const { exitCode: ensureExitCode, stdout: ensureStdout, stderr: ensureStderr } = ensureResult as ExecResult;
+        const cleanEnsureStderr = this.filterStderr(ensureStderr);
+        /* Postgres's ensureDatabaseCommand has no IF NOT EXISTS — every call after the first one errors
+         * with "already exists" (or MySQL's "database exists"), which is the expected, successful outcome here. */
+        const isAlreadyExists =
+          /already exists|database exists/i.test(cleanEnsureStderr) ||
+          /already exists|database exists/i.test(ensureStdout);
+        if (!isAlreadyExists && (ensureExitCode !== 0 || cleanEnsureStderr)) {
+          return {
+            success: false,
+            status: 'error',
+            executionTimeMs: Date.now() - startTime,
+            error: {
+              message: `[${this.dialect}] Failed to prepare project database: ${cleanEnsureStderr || `exit code ${ensureExitCode}`}`,
+              code: 'SCHEMA_APPLY_FAILED',
+            },
+            containerId,
+            executedAt: new Date().toISOString(),
+          };
+        }
+      }
 
       const queryResult = await Promise.race([
-        this.execInContainer(container, queryCmd),
+        this.execInContainer(container, this.config.buildCommand(sql, database)),
         this.timeoutPromise(timeoutMs),
       ]);
 
       const executionTimeMs = Date.now() - startTime;
 
       if (queryResult === 'timeout') {
-        const cid = container.id;
-        await this.forceRemoveContainer(container);
-        container = null;
         return {
           success: false,
           status: 'timeout',
           executionTimeMs,
-          error: { message: `[${this.dialect}] Query execution exceeded ${timeoutMs}ms timeout`, code: 'QUERY_TIMEOUT' },
-          containerId: cid,
+          error: {
+            message: `[${this.dialect}] Query execution exceeded ${timeoutMs}ms timeout`,
+            code: 'QUERY_TIMEOUT',
+          },
+          containerId,
           executedAt: new Date().toISOString(),
         };
       }
 
       const { stdout, stderr, exitCode } = queryResult as ExecResult;
-
-      /* Filter engine-specific noise from stderr */
       const cleanStderr = this.filterStderr(stderr);
 
       if (exitCode !== 0 || cleanStderr) {
@@ -461,8 +775,11 @@ export class DockerSandboxExecutor implements SandboxExecutor {
           success: false,
           status: 'error',
           executionTimeMs,
-          error: { message: `[${this.dialect}] ${cleanStderr || `Command exited with code ${exitCode}`}`, code: exitCode !== 0 ? `EXIT_${exitCode}` : 'SQL_ERROR' },
-          containerId: container.id,
+          error: {
+            message: `[${this.dialect}] ${cleanStderr || `Command exited with code ${exitCode}`}`,
+            code: exitCode !== 0 ? `EXIT_${exitCode}` : 'SQL_ERROR',
+          },
+          containerId,
           executedAt: new Date().toISOString(),
         };
       }
@@ -475,11 +792,19 @@ export class DockerSandboxExecutor implements SandboxExecutor {
         rows: parsed.rows,
         rowCount: parsed.rows.length,
         executionTimeMs,
-        containerId: container.id,
+        containerId,
         executedAt: new Date().toISOString(),
       };
-    } finally {
-      if (container) await this.forceRemoveContainer(container);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        status: 'error',
+        executionTimeMs: Date.now() - startTime,
+        error: { message: `[${this.dialect}] Sandbox execution failed: ${message}`, code: 'SANDBOX_ERROR' },
+        containerId,
+        executedAt: new Date().toISOString(),
+      };
     }
   }
 
@@ -558,50 +883,25 @@ export class DockerSandboxExecutor implements SandboxExecutor {
     });
   }
 
-  /**
-   * Wait for a container to exit and collect its logs.
-   * Used for non-server (one-shot) containers like SQLite.
-   */
-  private async waitForContainerExit(container: Docker.Container): Promise<ContainerExitResult> {
-    const stream = await container.logs({ follow: true, stdout: true, stderr: true });
+  /** Splits a Docker multiplexed logs buffer (same framing as container.exec() streams) into stdout/stderr. */
+  private demuxBuffer(chunk: Buffer): { stdout: string; stderr: string } {
+    let stdout = '';
+    let stderr = '';
+    let offset = 0;
+    while (offset < chunk.length) {
+      if (offset + 8 > chunk.length) {
+        stdout += chunk.subarray(offset).toString('utf-8');
+        break;
+      }
+      const streamType = chunk[offset];
+      const payloadLen = chunk.readUInt32BE(offset + 4);
+      const payload = chunk.subarray(offset + 8, offset + 8 + payloadLen).toString('utf-8');
 
-    return new Promise((resolve, reject) => {
-      let stdout = '';
-      let stderr = '';
-
-      stream.on('data', (chunk: Buffer) => {
-        /* Docker multiplexed stream: first 8 bytes are header */
-        if (chunk.length > 8) {
-          const streamType = chunk[0];
-          const payload = chunk.subarray(8).toString('utf-8');
-
-          if (streamType === 2) {
-            stderr += payload;
-          } else if (streamType === 1) {
-            stdout += payload;
-          } else {
-            stdout += chunk.toString('utf-8');
-          }
-        } else {
-          stdout += chunk.toString('utf-8');
-        }
-      });
-
-      stream.on('end', async () => {
-        try {
-          const inspection = await container.inspect();
-          resolve({
-            stdout,
-            stderr,
-            exitCode: inspection.State.ExitCode ?? 0,
-          });
-        } catch (e) {
-          reject(e);
-        }
-      });
-
-      stream.on('error', reject);
-    });
+      if (streamType === 2) stderr += payload;
+      else stdout += payload;
+      offset += 8 + payloadLen;
+    }
+    return { stdout, stderr };
   }
 
   /**
@@ -618,6 +918,8 @@ export class DockerSandboxExecutor implements SandboxExecutor {
         if (l.includes('Using a password on the command line interface can be insecure')) return false;
         /* MariaDB password warning */
         if (l.includes('password on the command line')) return false;
+        /* Postgres informational notices (e.g. relation already exists, sequence created) */
+        if (l.startsWith('NOTICE:') || l.startsWith('INFO:')) return false;
         /* MSSQL sqlcmd informational messages */
         if (l.startsWith('Changed database context to')) return false;
         if (l.match(/^\(\d+ rows? affected\)$/)) return false;
@@ -638,10 +940,15 @@ export class DockerSandboxExecutor implements SandboxExecutor {
   private async forceRemoveContainer(container: Docker.Container): Promise<void> {
     try {
       await container.stop({ t: 2 }).catch(() => {});
-      await container.remove({ force: true, v: true });
+      await container.remove({ force: true, v: false });
     } catch {
       /* Container may already be removed */
     }
+  }
+
+  /** Converts config.sandboxCpuLimit (fractional CPUs, e.g. 0.5) to Docker's NanoCpus unit. */
+  private cpuLimitNanoCpus(): number {
+    return Math.round(config.sandboxCpuLimit * 1_000_000_000);
   }
 
   private parseMemoryLimit(limit: string): number {
@@ -652,10 +959,14 @@ export class DockerSandboxExecutor implements SandboxExecutor {
     const unit = (match[2] || 'm').toLowerCase();
 
     switch (unit) {
-      case 'k': return value * 1024;
-      case 'm': return value * 1024 * 1024;
-      case 'g': return value * 1024 * 1024 * 1024;
-      default: return value;
+      case 'k':
+        return value * 1024;
+      case 'm':
+        return value * 1024 * 1024;
+      case 'g':
+        return value * 1024 * 1024 * 1024;
+      default:
+        return value;
     }
   }
 }

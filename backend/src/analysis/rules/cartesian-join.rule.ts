@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST, Select } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects implicit Cartesian joins (cross joins) where tables
@@ -73,19 +73,29 @@ export class CartesianJoinRule implements AnalysisRule {
         const leftTable = left['table'] as string | undefined;
         const rightTable = right['table'] as string | undefined;
 
-        if (leftTable && rightTable && tables.includes(leftTable) && tables.includes(rightTable) && leftTable !== rightTable) {
+        if (
+          leftTable &&
+          rightTable &&
+          tables.includes(leftTable) &&
+          tables.includes(rightTable) &&
+          leftTable !== rightTable
+        ) {
           return true;
         }
       }
 
-      return this.whereContainsJoinCondition(record['left'], tables) ||
-             this.whereContainsJoinCondition(record['right'], tables);
+      return (
+        this.whereContainsJoinCondition(record['left'], tables) ||
+        this.whereContainsJoinCondition(record['right'], tables)
+      );
     }
 
     /* AND / OR */
     if (type === 'binary_expr' && (record['operator'] === 'AND' || record['operator'] === 'OR')) {
-      return this.whereContainsJoinCondition(record['left'], tables) ||
-             this.whereContainsJoinCondition(record['right'], tables);
+      return (
+        this.whereContainsJoinCondition(record['left'], tables) ||
+        this.whereContainsJoinCondition(record['right'], tables)
+      );
     }
 
     return false;

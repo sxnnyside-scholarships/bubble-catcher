@@ -1,6 +1,6 @@
 import type { AnalysisIssue } from '@shared/types';
-import type { AnalysisRule } from '../rule.interface';
 import type { AST } from 'node-sql-parser';
+import type { AnalysisRule } from '../rule.interface';
 
 /**
  * Detects SELECT columns that are neither aggregated nor listed in the GROUP BY clause.
@@ -9,13 +9,20 @@ import type { AST } from 'node-sql-parser';
 export class GroupByInconsistencyRule implements AnalysisRule {
   readonly id = 'group-by-inconsistency';
   readonly name = 'GROUP BY Inconsistency';
-  readonly description =
-    'Detects non-aggregated columns that are missing from the GROUP BY clause';
+  readonly description = 'Detects non-aggregated columns that are missing from the GROUP BY clause';
 
   private static readonly AGGREGATE_FUNS = new Set([
-    'COUNT', 'SUM', 'AVG', 'MIN', 'MAX',
-    'GROUP_CONCAT', 'STRING_AGG', 'ARRAY_AGG',
-    'LISTAGG', 'COLLECT', 'XMLAGG',
+    'COUNT',
+    'SUM',
+    'AVG',
+    'MIN',
+    'MAX',
+    'GROUP_CONCAT',
+    'STRING_AGG',
+    'ARRAY_AGG',
+    'LISTAGG',
+    'COLLECT',
+    'XMLAGG',
   ]);
 
   analyze(ast: AST): AnalysisIssue[] {

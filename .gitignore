@@ -14,10 +14,8 @@ bun.lockb
 # Build output
 dist/
 build/
-.svelte-kit/
 backend/dist/
 frontend/build/
-frontend/.svelte-kit/
 
 # Environment files
 .env
@@ -36,7 +34,6 @@ backend/coverage/
 frontend/coverage/
 
 # Docker artifacts
-.dockerignore
 docker/**/*.log
 docker/**/*.tmp
 
@@ -81,3 +78,6 @@ vite.config.js.timestamp-*
 *.tgz
 *.zip
 .cache/
+
+# Animoria cache & staged cleanup
+.animoria/
