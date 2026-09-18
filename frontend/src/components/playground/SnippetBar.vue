@@ -20,8 +20,9 @@ const SNIPPETS = [
 ];
 
 function handleDragStart(event: DragEvent, text: string) {
-  event.dataTransfer?.setData('text/plain', text);
-  event.dataTransfer!.effectAllowed = 'copy';
+  if (!event.dataTransfer) return;
+  event.dataTransfer.setData('text/plain', text);
+  event.dataTransfer.effectAllowed = 'copy';
 }
 </script>
 

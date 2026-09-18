@@ -25,6 +25,13 @@
       },
       "suspicious": {
         "noExplicitAny": "warn"
+      },
+      "complexity": {
+        "useLiteralKeys": "off",
+        "useOptionalChain": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off"
       }
     }
   },

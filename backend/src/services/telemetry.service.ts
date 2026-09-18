@@ -112,10 +112,10 @@ export async function getExecutionHealth(userId: string): Promise<ExecutionHealt
     const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
     return {
-      successfulPct: pct(counts['success'] ?? 0),
-      failedPct: pct(counts['error'] ?? 0),
-      dangerousPct: pct(counts['killed'] ?? 0),
-      improvablePct: pct(counts['timeout'] ?? 0),
+      successfulPct: pct(counts.success ?? 0),
+      failedPct: pct(counts.error ?? 0),
+      dangerousPct: pct(counts.killed ?? 0),
+      improvablePct: pct(counts.timeout ?? 0),
       totalRuns: total,
     };
   } catch (err) {

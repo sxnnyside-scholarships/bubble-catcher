@@ -33,7 +33,7 @@ function toEngineState(
  * record to `stopped` if the container we remember has actually died. */
 export async function getContainerId(dialect: ServerBasedDialect, executor: SandboxExecutor): Promise<string | null> {
   const row = await getRow(dialect);
-  if (!row || row.status !== 'running' || !row.containerId) return null;
+  if (row?.status !== 'running' || !row.containerId) return null;
 
   const alive = (await executor.isContainerAlive?.(row.containerId)) ?? false;
   if (!alive) {

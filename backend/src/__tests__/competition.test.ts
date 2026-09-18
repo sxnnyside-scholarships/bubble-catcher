@@ -90,9 +90,9 @@ describe('Query Golf & Competition Engine', () => {
     });
 
     // Diana wins the tie-breaker with Charlie on queryLength (140 vs 180 chars)
-    expect(sorted[0]!.userName).toBe('Diana');
-    expect(sorted[1]!.userName).toBe('Charlie');
-    expect(sorted[2]!.userName).toBe('Bob');
-    expect(sorted[3]!.userName).toBe('Alice');
+    expect(sorted[0]?.userName).toBe('Diana');
+    expect(sorted[1]?.userName).toBe('Charlie');
+    expect(sorted[2]?.userName).toBe('Bob');
+    expect(sorted[3]?.userName).toBe('Alice');
   });
 });

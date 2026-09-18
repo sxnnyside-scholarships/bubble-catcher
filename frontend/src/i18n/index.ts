@@ -41,5 +41,5 @@ export function currentLocale(): Locale {
 export function resolveErrorCode(code: string): string {
   const messages = i18n.global.messages.value[currentLocale()];
   const errors = messages?.errors as Record<string, string> | undefined;
-  return errors?.[code] ?? errors?.['INTERNAL_ERROR'] ?? code;
+  return errors?.[code] ?? errors?.INTERNAL_ERROR ?? code;
 }

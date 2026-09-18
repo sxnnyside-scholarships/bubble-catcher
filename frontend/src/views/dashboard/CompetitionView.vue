@@ -46,7 +46,6 @@ const difficultyBadge = computed(() => {
       };
     case 'medium':
       return { class: 'border-amber-500/40 bg-amber-500/10 text-amber-400', label: t('competition.difficultyMedium') };
-    case 'hard':
     default:
       return { class: 'border-rose-500/40 bg-rose-500/10 text-rose-400', label: t('competition.difficultyHard') };
   }
@@ -59,7 +58,8 @@ async function loadChallenges() {
   if (res.success) {
     challenges.value = res.data;
     if (res.data.length > 0 && !selectedChallengeId.value) {
-      selectChallenge(res.data[0]!.id);
+      const firstId = res.data[0]?.id;
+      if (firstId) selectChallenge(firstId);
     }
   }
   loadingChallenges.value = false;

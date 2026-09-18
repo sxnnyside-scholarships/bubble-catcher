@@ -6,15 +6,15 @@ import { AppError } from '../lib/errors';
 
 export class PlaygroundShareService {
   async createShare(userId: string, payload: CreatePlaygroundSharePayload): Promise<PlaygroundShare> {
-    if (!payload.title || !payload.title.trim()) {
+    if (!payload.title?.trim()) {
       throw AppError.badRequest('VALIDATION_ERROR', { field: 'title', message: 'Title is required' });
     }
-    if (!payload.sql || !payload.sql.trim()) {
+    if (!payload.sql?.trim()) {
       throw AppError.badRequest('EMPTY_QUERY');
     }
 
-    let schemaStatements: any[] = [];
-    let schemaTables: any[] = [];
+    let schemaStatements: PlaygroundShare['schemaStatements'] = [];
+    let schemaTables: PlaygroundShare['schemaTables'] = [];
 
     if (payload.projectId) {
       const [proj] = await db

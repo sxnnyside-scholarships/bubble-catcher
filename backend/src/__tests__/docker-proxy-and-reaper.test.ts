@@ -3,32 +3,32 @@ import { createDockerClient } from '../sandbox/docker-executor';
 import { EPHEMERAL_MAX_AGE_MS, sweepOrphans } from '../sandbox/orphan-reaper';
 
 describe('createDockerClient', () => {
-  const originalDockerHost = process.env['DOCKER_HOST'];
+  const originalDockerHost = process.env.DOCKER_HOST;
 
   afterEach(() => {
     if (originalDockerHost !== undefined) {
-      process.env['DOCKER_HOST'] = originalDockerHost;
+      process.env.DOCKER_HOST = originalDockerHost;
     } else {
-      delete process.env['DOCKER_HOST'];
+      delete process.env.DOCKER_HOST;
     }
   });
 
   test('parses tcp:// URL from DOCKER_HOST for socket proxy', () => {
-    process.env['DOCKER_HOST'] = 'tcp://docker-proxy:2375';
+    process.env.DOCKER_HOST = 'tcp://docker-proxy:2375';
     const client = createDockerClient();
     expect((client.modem as { host?: string }).host).toBe('docker-proxy');
     expect((client.modem as { port?: number }).port).toBe(2375);
   });
 
   test('parses http:// URL from DOCKER_HOST', () => {
-    process.env['DOCKER_HOST'] = 'http://custom-proxy:9000';
+    process.env.DOCKER_HOST = 'http://custom-proxy:9000';
     const client = createDockerClient();
     expect((client.modem as { host?: string }).host).toBe('custom-proxy');
     expect((client.modem as { port?: number }).port).toBe(9000);
   });
 
   test('parses unix:/// socket path from DOCKER_HOST', () => {
-    process.env['DOCKER_HOST'] = 'unix:///var/run/custom.sock';
+    process.env.DOCKER_HOST = 'unix:///var/run/custom.sock';
     const client = createDockerClient();
     expect((client.modem as { socketPath?: string }).socketPath).toBe('/var/run/custom.sock');
   });

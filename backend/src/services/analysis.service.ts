@@ -5,7 +5,7 @@ import { AppError } from '../lib/errors';
 
 export class AnalysisService {
   analyze(sql: string, dialect: Dialect): AnalysisResult {
-    if (!sql || !sql.trim()) {
+    if (!sql?.trim()) {
       throw AppError.badRequest('EMPTY_QUERY');
     }
 

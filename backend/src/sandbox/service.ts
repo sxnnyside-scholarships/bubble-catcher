@@ -85,7 +85,7 @@ export class SandboxService {
   async dropProjectDatabase(dialect: string, projectId: string): Promise<void> {
     if (!isServerBasedDialect(dialect)) return;
     const executor = this.executors.get(dialect);
-    if (!executor || !executor.dropDatabaseInContainer) return;
+    if (!executor?.dropDatabaseInContainer) return;
     const containerId = await getContainerId(dialect, executor);
     if (!containerId) return;
     const database = projectDatabaseName(projectId);
