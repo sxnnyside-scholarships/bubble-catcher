@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { MINGCUTE_ICONS } from '@/design/mingcute-icons';
 
-/** Icon bodies are extracted at build time from the MIT-licensed MingCute set (@iconify-json/mingcute) — no runtime fetch, works fully offline. */
+/** Offline icon component rendering bundled MingCute SVG paths. */
 const props = defineProps<{ name: keyof typeof MINGCUTE_ICONS }>();
 
 const body = computed(() => MINGCUTE_ICONS[props.name]);

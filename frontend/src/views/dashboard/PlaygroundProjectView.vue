@@ -198,7 +198,7 @@ async function checkShare() {
   }
 }
 
-/* Live rule-based analysis — debounced so we don't hammer the endpoint on every keystroke. */
+/* Debounced live AST analysis on query input changes. */
 let debounceHandle: ReturnType<typeof setTimeout> | undefined;
 
 async function runAnalysis() {

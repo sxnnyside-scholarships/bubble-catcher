@@ -1,8 +1,8 @@
 {
   "name": "bubble-catcher-frontend",
-  "description": "Bubble Catcher — Vue 3 frontend (replaces the SvelteKit legacy app in frontend-legacy/).",
+  "description": "Bubble Catcher — Vue 3 + Tailwind v4 Single Page Application",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.0.0",
   "type": "module",
   "packageManager": "bun@1.4.0",
   "engines": {

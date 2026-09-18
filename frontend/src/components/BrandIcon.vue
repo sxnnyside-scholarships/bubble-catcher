@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import MingcuteIcon from '@/components/MingcuteIcon.vue';
 import { BRAND_ICONS } from '@/design/brand-icons';
 
-/** Official brand marks from simple-icons, extracted at build time — see design/brand-icons.ts. */
+/** Dialect brand mark SVG component. */
 const props = defineProps<{ dialect: string }>();
 
 const brand = computed(() => BRAND_ICONS[props.dialect]);

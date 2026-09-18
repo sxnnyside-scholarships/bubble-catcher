@@ -21,7 +21,7 @@ export interface SchemaStatement {
   sql: string;
 }
 
-/** No Row Level Security — access control is enforced in the service layer (every query filters by userId; admin routes deliberately don't). */
+/** Enums for user roles, account statuses, engine dialects, and telemetry event categories. */
 
 export const userRoleEnum = pgEnum('user_role', ['admin', 'user']);
 export const userStatusEnum = pgEnum('user_status', ['active', 'suspended', 'pending_approval']);
@@ -32,7 +32,7 @@ export const engineStatusEnum = pgEnum('engine_status', ['stopped', 'running']);
 export const executionStatusEnum = pgEnum('execution_status', ['success', 'error', 'timeout', 'killed']);
 export const telemetryEventEnum = pgEnum('telemetry_event', ['ANALYSIS', 'EXECUTION']);
 
-/** Shape of `users.preferences`. Validate at the DTO layer, not the DB. */
+/** User UI and localization preferences stored as JSONB. */
 export interface UserPreferences {
   theme: 'colorful' | 'light' | 'dark';
   locale: 'en' | 'es';
@@ -47,16 +47,16 @@ const softDeleteColumn = {
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 };
 
-/** Replaces auth.users + bubble_profiles (fused). No `plan` column — no tiers. */
+/** Primary user accounts table. */
 export const usersTable = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
-  /** Nullable only because accounts created before this column existed have none — every new signup sets it. */
+  /** User display name. */
   displayName: text('display_name'),
   role: userRoleEnum('role').notNull().default('user'),
   status: userStatusEnum('status').notNull().default('active'),
-  /** True only for the first account created on this instance (see auth.routes.ts signup). Informational — role/status govern access, not this flag. */
+  /** Set to true for the initial administrator account created on the instance. */
   isOwner: boolean('is_owner').notNull().default(false),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   preferences: jsonb('preferences').$type<UserPreferences>().notNull().default(DEFAULT_USER_PREFERENCES),

@@ -116,8 +116,7 @@ async function handleSeedTable(tableName: string, count: number) {
   }
 }
 
-/** Builds every table in a template, then seeds each with `rowsPerTable` fake rows — orchestrated
- * client-side by calling the same single-table endpoints the manual flow uses. */
+/** Generates schema tables from a template and seeds rows for testing. */
 async function handleGenerateSchema(templateId: string, rowsPerTable: number) {
   if (!auth.accessToken) return;
   const template = SCHEMA_TEMPLATES.find((tpl) => tpl.id === templateId);

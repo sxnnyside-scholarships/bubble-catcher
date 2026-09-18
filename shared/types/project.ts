@@ -64,6 +64,6 @@ export interface CreatePlaygroundSharePayload {
   projectId?: string;
 }
 
-/** Default instance-wide project limit per user (overridable via MAX_PROJECTS_PER_USER env) */
+/** Default limit of projects per user. */
 export const DEFAULT_MAX_PROJECTS_PER_USER = 20;
 

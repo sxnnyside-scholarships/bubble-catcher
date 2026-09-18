@@ -14,15 +14,16 @@ import { parsePagination, toPaginatedResponse } from '../lib/pagination';
 import { success } from '../lib/response';
 import { requireAdmin } from '../middleware';
 import { sandboxService } from '../sandbox';
+import { recordNotification } from '../services/notification.service';
 import { getSystemSettings, updateSystemSettings } from '../services/settings.service';
 import { getTelemetrySummary } from '../services/telemetry.service';
 import { issueEmailVerificationToken, revokeAllRefreshTokens } from '../services/token.service';
 
-/** API only, no dedicated UI yet. First signup on the instance is 'admin' — see auth.routes.ts. */
+/** Admin endpoints for user management, system settings, sandboxes, and telemetry. */
 export const adminRoutes = new Elysia({ prefix: '/admin' })
   .use(requireAdmin)
 
-  /* All users of the instance (not just the caller's own row), paginated. Filter by status (e.g. pending_approval) via ?status= */
+  /* Paginated user list with optional status filtering. */
   .get(
     '/users',
     async ({ query }) => {
@@ -96,7 +97,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     },
   )
 
-  /* Approve a pending signup — only meaningful when registrationMode is 'approval_required'. */
+  /* Approve a pending user account. */
   .post(
     '/users/:id/approve',
     async ({ params }) => {
@@ -124,7 +125,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     },
   )
 
-  /* Reject a pending signup — the account never became active, so this soft-deletes it rather than suspending. */
+  /* Reject and soft-delete a pending signup request. */
   .post(
     '/users/:id/reject',
     async ({ params }) => {
@@ -157,9 +158,26 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   .patch(
     '/settings',
     async ({ body }) => {
+      const prev = await getSystemSettings();
       const updated = await updateSystemSettings(body);
+      if (body.enabledFeatures) {
+        const prevFeatures = prev.enabledFeatures as unknown as Record<string, boolean>;
+        for (const [key, enabled] of Object.entries(body.enabledFeatures)) {
+          if (enabled !== undefined && prevFeatures[key] !== enabled) {
+            const featureName = key.charAt(0).toUpperCase() + key.slice(1);
+            recordNotification(
+              enabled ? 'mode_enabled' : 'mode_disabled',
+              `${featureName} Mode ${enabled ? 'Enabled' : 'Disabled'}`,
+              `Administrator ${enabled ? 'enabled' : 'disabled'} ${featureName} mode for all users.`,
+              key,
+            );
+          }
+        }
+      }
+
       return success(updated);
     },
+
     {
       body: t.Object({
         registrationMode: t.Optional(
@@ -355,11 +373,10 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     return success(toPaginatedResponse(rows.map(toProjectDto), total, pagination));
   })
 
-  /* Read-only — toggling requires restarting the process (SANDBOX_ENABLED_DIALECTS env). */
+  /* Enabled dialects configured via environment variables. */
   .get('/sandbox/dialects', () => success({ enabled: config.enabledDialects }))
 
-  /* Server-based engines (postgres/mysql/mariadb/mssql) run as long-lived containers the admin starts
-   * and stops explicitly — see sandbox/lifecycle.service.ts for why. */
+  /* Container lifecycle management for persistent database sandbox engines. */
   .get('/sandbox/engines', async () => {
     const engines = await sandboxService.getEngineStates();
     return success({ engines });
@@ -368,7 +385,15 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   .post(
     '/sandbox/engines/:dialect/start',
     async ({ params }) => {
-      const engine = await sandboxService.startEngine(params.dialect);
+      const dialectStr = params.dialect as string;
+      const engine = await sandboxService.startEngine(dialectStr as any);
+      const dialectName = dialectStr.charAt(0).toUpperCase() + dialectStr.slice(1);
+      recordNotification(
+        'engine_started',
+        `${dialectName} Engine Online`,
+        `Administrator started the ${dialectName} sandbox engine. Engine is ready for queries.`,
+        dialectStr,
+      );
       return success(engine);
     },
     { params: t.Object({ dialect: t.Union(SERVER_BASED_DIALECTS.map((d) => t.Literal(d))) }) },
@@ -377,13 +402,21 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   .post(
     '/sandbox/engines/:dialect/stop',
     async ({ params }) => {
-      const engine = await sandboxService.stopEngine(params.dialect);
+      const dialectStr = params.dialect as string;
+      const engine = await sandboxService.stopEngine(dialectStr as any);
+      const dialectName = dialectStr.charAt(0).toUpperCase() + dialectStr.slice(1);
+      recordNotification(
+        'engine_stopped',
+        `${dialectName} Engine Stopped`,
+        `Administrator stopped the ${dialectName} sandbox engine.`,
+        dialectStr,
+      );
       return success(engine);
     },
     { params: t.Object({ dialect: t.Union(SERVER_BASED_DIALECTS.map((d) => t.Literal(d))) }) },
   )
 
-  /* Global telemetry aggregate (not scoped to the admin's own userId) */
+  /* Aggregate telemetry metrics across all users. */
   .get('/telemetry', async () => {
     const summary = await getTelemetrySummary();
     return success(summary);

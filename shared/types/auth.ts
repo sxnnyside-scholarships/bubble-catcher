@@ -1,6 +1,6 @@
 import type { UserProfile } from './api';
 
-/* Mirrors the Elysia `t.Object` schemas in auth/user/admin.routes.ts — kept in sync by hand. */
+/** Authentication and user administration payload and response types. */
 
 export interface SignupPayload {
   name: string;
@@ -18,20 +18,20 @@ export interface AuthTokens {
   refreshToken: string;
 }
 
-/** Response of `/auth/signup` and `/auth/login` */
+/** Response payload for active user session. */
 export interface AuthSession extends AuthTokens {
   pending?: false;
   user: UserProfile;
 }
 
-/** Response of `/auth/signup` when the instance requires admin approval — no tokens are issued yet. */
+/** Response payload when registration requires administrator approval. */
 export interface PendingApprovalResponse {
   pending: true;
 }
 
 export type SignupResponse = AuthSession | PendingApprovalResponse;
 
-/** Response of `/auth/refresh` — no `user`, just a rotated token pair */
+/** Response payload for refreshed token pair. */
 export type RefreshResponse = AuthTokens;
 
 export interface RefreshTokenPayload {
@@ -78,7 +78,7 @@ export interface AdminUpdateUserPayload {
   status?: 'active' | 'suspended';
 }
 
-/** `POST /admin/users` — admin-initiated account creation, bypasses registration governance and email verification. */
+/** Payload for administrator-created user account. */
 export interface AdminCreateUserPayload {
   name: string;
   email: string;
@@ -88,7 +88,7 @@ export interface AdminCreateUserPayload {
 
 export type RegistrationMode = 'open' | 'invite_only' | 'approval_required';
 
-/** `GET/PATCH /admin/settings` */
+/** Registration settings configuration. */
 export interface RegistrationSettings {
   registrationMode: RegistrationMode;
 }

@@ -20,7 +20,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: string]; run: [] }>();
 const container = ref<HTMLDivElement | null>(null);
 let view: EditorView | null = null;
 
-/** CodeMirror's SQL language package ships dialect-aware keyword sets — matched to our sandbox dialects. */
+/** Resolves CodeMirror SQL dialect extension matching the active dialect. */
 function dialectFor(dialect: SupportedDialect) {
   switch (dialect) {
     case 'postgresql':
@@ -105,7 +105,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => view?.destroy());
 
-/* Keep the editor's dialect-specific keyword set in sync when the user switches engines. */
+/* Synchronize syntax highlighter when dialect changes. */
 watch(
   () => props.dialect,
   () => {
@@ -115,7 +115,7 @@ watch(
   },
 );
 
-/* External updates (e.g. a snippet inserted via drag-and-drop into a re-mounted doc) */
+/* Synchronize external model value updates into editor state. */
 watch(
   () => props.modelValue,
   (value) => {
@@ -125,7 +125,7 @@ watch(
   },
 );
 
-/** Inserts text at the current cursor (or at the drop position) — used by the draggable snippet chips. */
+/** Insert text at cursor position or target offset. */
 function insertAtCursor(text: string, pos?: number) {
   if (!view) return;
   const at = pos ?? view.state.selection.main.head;

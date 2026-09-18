@@ -6,7 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-VERSION_TAG="1.0.0"
+VERSION_TAG="2.0.0"
 ALL_DIALECTS=(mysql mariadb postgres sqlite libsql mssql)
 
 if [ "$#" -eq 0 ]; then
@@ -15,7 +15,7 @@ else
   DIALECTS=("$@")
 fi
 
-echo "🫧 Building Bubble Catcher sandbox images: ${DIALECTS[*]}"
+echo "[docker] Building Bubble Catcher sandbox images: ${DIALECTS[*]}"
 echo ""
 
 for dialect in "${DIALECTS[@]}"; do
@@ -24,11 +24,11 @@ for dialect in "${DIALECTS[@]}"; do
     [ "$d" = "$dialect" ] && valid=true && break
   done
   if [ "$valid" = false ]; then
-    echo "❌ Unknown dialect: $dialect (expected one of: ${ALL_DIALECTS[*]})" >&2
+    echo "[docker:error] Unknown dialect: $dialect (expected one of: ${ALL_DIALECTS[*]})" >&2
     exit 1
   fi
 
-  echo "📦 Building $dialect sandbox..."
+  echo "[docker] Building $dialect sandbox..."
   docker build -f "$dialect/Dockerfile" \
     -t "bubble-catcher-$dialect:latest" \
     -t "bubble-catcher-$dialect:$VERSION_TAG" \
@@ -36,7 +36,7 @@ for dialect in "${DIALECTS[@]}"; do
   echo ""
 done
 
-echo "✅ Done. Set SANDBOX_IMAGE_TAG=$VERSION_TAG in backend/.env to run these (it's already the default)."
+echo "[docker] Done. Set SANDBOX_IMAGE_TAG=$VERSION_TAG in backend/.env to run these (it's already the default)."
 echo ""
 echo "Images:"
 docker images | grep bubble-catcher

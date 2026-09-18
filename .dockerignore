@@ -1,0 +1,9 @@
+**/node_modules
+**/.git
+**/.antigravity*
+**/.DS_Store
+**/dist
+**/coverage
+**/*.log
+**/.env
+!**/.env.example

@@ -27,3 +27,13 @@ export interface PublicSettingsDto {
   registrationMode: RegistrationMode;
   enabledFeatures: PlatformFeatures;
 }
+
+export interface SystemNotificationDto {
+  id: string;
+  type: 'engine_started' | 'engine_stopped' | 'mode_enabled' | 'mode_disabled' | 'system';
+  title: string;
+  message: string;
+  target?: string;
+  timestamp: string;
+}
+

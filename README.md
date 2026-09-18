@@ -5,8 +5,8 @@
 [![CI](https://github.com/sxnnyside-scholarships/bubble-catcher/workflows/CI/badge.svg)](https://github.com/sxnnyside-scholarships/bubble-catcher/actions)
 
 <p align="center">
-  <strong>Educational SQL Analysis ✦ Sandboxed Execution ✦ Multi-Dialect</strong><br>
-  <em>Safe SQL query analysis and disposable container sandboxes for students, educators, and developers.</em>
+  <strong>Multi-Engine Sandboxes ✦ AST Quality Analysis ✦ Self-Hosted Education</strong><br>
+  <em>Educational relational database platform with isolated query sandboxes and real-time AST anti-pattern detection.</em>
 </p>
 
 <p align="center">
@@ -22,30 +22,27 @@
 
 ## About
 
-**Bubble Catcher** is an educational SQL analysis and sandboxed execution platform. It parses SQL queries, detects inefficiencies and unsafe patterns through a rule-based static analysis engine, suggests safer rewrites, and executes queries inside ephemeral Docker containers isolated from the host system.
+**Bubble Catcher** is a self-hosted SQL educational laboratory that analyzes Abstract Syntax Trees and executes queries inside isolated engine sandboxes.
 
-SQL education tools typically fall into two categories: static linters that flag errors without execution, and online sandboxes that execute queries without analysis. Bubble Catcher bridges both: it analyzes your query before execution, explains what the AST analysis found, and runs the query inside disposable containers so you can inspect results safely.
+Conventional query evaluation tools grade code based solely on whether output rows match expectations, encouraging unindexed joins, wildcard projections, and inefficient patterns that collapse in production. Bubble Catcher parses and validates the SQL syntax tree before and during execution, teaching sargability, index selection, and dialect-specific execution mechanics.
 
-The platform supports multiple SQL dialects, letting learners compare how identical concepts behave across PostgreSQL, MySQL, MariaDB, SQLite, and MSSQL.
+Queries execute within ephemeral sandboxes managed through a restricted socket proxy, capturing execution plans, memory buffers, and runtimes without exposing host infrastructure.
 
 ### Philosophy
 
-> _"Safe SQL exploration through AST static analysis and disposable container sandboxes."_
+> _"SQL education should teach architectural mechanics and query sargability, not just syntax matching."_
 
 Bubble Catcher is a Sxnnyside Scholarships project, part of the [Sxnnyside Project](https://sxnnysideproject.com).
 
----
-
 ## Features
 
-- **AST-Based Static Analysis**: Rule engine with 17 static analysis rules detecting Cartesian joins, unbounded scans, and anti-patterns.
-- **Isolated Docker Sandboxes**: Ephemeral containers with dropped capabilities, memory/CPU caps, and network isolation (`NetworkMode: none`).
-- **Multi-Dialect Support**: Native execution environments for PostgreSQL, MySQL, MariaDB, SQLite, and MSSQL.
-- **Self-Hosted Architecture**: Self-contained PostgreSQL storage with Drizzle ORM, trigger migrations, and local JWT authentication.
-- **Tactile User Interface**: Responsive Vue 3 frontend featuring Bubblemorphism aesthetics, SQL syntax highlighting, and interactive results.
-- **Quality Gate Automation**: Unified command surface with `just` and Biome linter/formatter enforcing strict correctness.
-
----
+- **AST Anti-Pattern Analysis**: 17 static inspection rules evaluating wildcard projection, cartesian joins, unindexed filters, and non-sargable constructs.
+- **Multi-Engine Sandboxes**: Isolated execution environments for PostgreSQL, MySQL, MariaDB, SQLite, LibSQL, and Microsoft SQL Server.
+- **Query Golf Competitions**: Optimization leaderboards evaluating execution time, memory buffer hit ratios, and AST cleanliness.
+- **Classrooms & Automated Grading**: Course management with assignment templates, initial schema seed statements, and tuple assertion grading.
+- **Interactive Execution Plans**: Visual AST breakdown and EXPLAIN ANALYZE node inspects with cost and duration heatmaps.
+- **Least-Privilege Docker Proxy**: Socket isolation prohibiting volume escapes, swarm alterations, or host escalation during sandbox runs.
+- **Self-Hosted Privacy**: Zero external telemetry reporting, air-gapped support, and native deployment via Docker Compose.
 
 ## Installation
 
@@ -53,7 +50,7 @@ Bubble Catcher is a Sxnnyside Scholarships project, part of the [Sxnnyside Proje
 
 - Bun (>= 1.4.0)
 - Just (>= 1.20)
-- Docker Desktop (running)
+- Docker Engine (>= 24.0)
 
 ### From Source
 
@@ -62,80 +59,44 @@ git clone https://github.com/sxnnyside-scholarships/bubble-catcher.git
 cd bubble-catcher
 
 just install
-```
-
-Configure your local backend environment:
-
-```bash
 cp backend/.env.example backend/.env
-```
-
-Apply database migrations and triggers:
-
-```bash
-cd backend && bun run db:setup
-```
-
-Build Docker sandbox images:
-
-```bash
-just docker-build
-```
-
----
-
-## Usage
-
-Start the complete development environment (backend on `:3001` and frontend on `:5173`):
-
-```bash
+just db-setup
 just dev
 ```
 
-Run the automated quality gate (formatting, linting, typechecking, and tests):
+### Self-Hosted Deployment
+
+For standalone VPS, Coolify, Dokku, or Netlify deployment configurations, see the complete guide in [DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## Usage
 
 ```bash
+# Start backend and frontend development servers
+just dev
+
+# Run automated verification suite (formatting, linting, typechecking, tests)
 just check
-```
 
-Compile production bundles:
-
-```bash
+# Compile production bundles
 just build
 ```
-
----
 
 ## Architecture
 
 ```
 bubble-catcher/
-├── backend/          # Bun + Elysia API server with self-hosted auth & Drizzle ORM
-├── frontend/         # Vue 3 + Vite + Tailwind v4 + Pinia SPA
-├── frontend-legacy/  # SvelteKit legacy prototype (archived reference implementation)
-├── shared/           # Pure TypeScript domain models and AST analysis types
-└── docker/           # Sandbox container definitions for multi-dialect execution
+├── backend/    # Bun API server, authentication, and execution sandbox proxy
+├── frontend/   # Vue 3 single-page application and query playgrounds
+├── shared/     # Domain models, AST rules, and SQL dialect types
+├── docker/     # Sandbox container images for isolated query engines
+└── docs/       # Deployment guides, architecture manuals, and specifications
 ```
-
-For a detailed breakdown, see [ARCHITECTURE.md](ARCHITECTURE.md).
-
-### Monorepo Structure
-
-- **`backend/`** — Bun-managed API service.
-- **`frontend/`** — Bun-managed Vue 3 single page application.
-- **`frontend-legacy/`** — SvelteKit legacy prototype retained as an architectural reference.
-- **`shared/`** — Shared TypeScript models and AST rule definitions (`@shared/*`).
-- **`docker/`** — Dialect definitions, entrypoints, and seed data.
-
----
 
 ## Contributing
 
 Contributions are accepted. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 Before contributing, read the [Code of Conduct](CODE_OF_CONDUCT.md).
-
----
 
 ## License
 

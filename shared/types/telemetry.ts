@@ -1,4 +1,4 @@
-/** Mirrors telemetry.service.ts's `TelemetrySummary` — response of `GET /telemetry/summary`. */
+/** Aggregate telemetry summary metrics. */
 export interface TelemetrySummary {
   totalAnalysis: number;
   totalExecution: number;
@@ -7,7 +7,7 @@ export interface TelemetrySummary {
   successRate: number;
 }
 
-/** Mirrors telemetry.service.ts's `ExecutionHealth` — the Workspace KPI cards. */
+/** Execution health indicators for workspace analytics. */
 export interface ExecutionHealth {
   successfulPct: number;
   failedPct: number;
@@ -21,7 +21,7 @@ export interface ExecutionTrendPoint {
   count: number;
 }
 
-/** Response of `GET /telemetry/workspace` */
+/** Workspace analytics summary payload. */
 export interface WorkspaceSummary {
   health: ExecutionHealth;
   trend: ExecutionTrendPoint[];

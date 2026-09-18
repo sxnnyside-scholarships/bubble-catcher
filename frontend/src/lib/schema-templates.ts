@@ -1,8 +1,6 @@
 import type { CreateTablePayload, TableColumn } from '@shared/types';
 
-/** Ready-made multi-table schemas with realistic FK relationships — lets a user build a "complete"
- * database in one action instead of adding tables one at a time. Row generation reuses the same
- * per-table seed endpoint the Sandbox already exposes. */
+/** Predefined multi-table schema templates with foreign key relationships. */
 export interface SchemaTemplate {
   id: string;
   labelKey: string;

@@ -3,13 +3,19 @@ FROM oven/bun:1.4.0
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
-# Not --production: drizzle-kit (devDependency) is needed by the `migrate` service in docker-compose.yml, which reuses this image.
+# Copy dependency manifests and install with frozen lockfile
+COPY backend/package.json backend/bun.lock ./
 RUN bun install --frozen-lockfile
 
-COPY src ./src
-COPY drizzle ./drizzle
-COPY drizzle.config.ts tsconfig.json ./
+# Copy root config and shared modules
+COPY tsconfig.base.json /tsconfig.base.json
+COPY shared /shared
+COPY shared ./shared
+
+# Copy backend source, migrations, and config
+COPY backend/src ./src
+COPY backend/drizzle ./drizzle
+COPY backend/drizzle.config.ts backend/tsconfig.json ./
 
 EXPOSE 3001
 

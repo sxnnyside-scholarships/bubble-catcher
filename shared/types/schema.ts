@@ -1,4 +1,4 @@
-/** User-facing column types — mapped to a real dialect-specific SQL type server-side (see schema.service.ts). */
+/** Generic column types supported across sandbox database engines. */
 export const COLUMN_TYPES = ['text', 'integer', 'decimal', 'boolean', 'date', 'datetime'] as const;
 export type ColumnType = (typeof COLUMN_TYPES)[number];
 
@@ -7,7 +7,7 @@ export interface TableColumn {
   type: ColumnType;
   primaryKey: boolean;
   nullable: boolean;
-  /** Set when this column references another table's column (rendered as a relationship in the Sandbox diagram). */
+  /** Foreign key relationship target if applicable. */
   references: { table: string; column: string } | null;
 }
 

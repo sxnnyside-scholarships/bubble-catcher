@@ -33,8 +33,7 @@ const health = computed(
   () => workspace.value?.health ?? { successfulPct: 0, failedPct: 0, dangerousPct: 0, improvablePct: 0, totalRuns: 0 },
 );
 
-/** Rendered as bubble-styled progress rows (see template) instead of a chart.js donut/bar — a plain
- * chart felt generic here per feedback; a custom widget reads more "designed" for a short list like this. */
+/** Dialect usage breakdown sorted by query frequency. */
 const dialectEntries = computed(() => Object.entries(summary.value?.dialectUsage ?? {}).sort(([, a], [, b]) => b - a));
 const hasDialectData = computed(() => dialectEntries.value.length > 0);
 const dialectTotal = computed(() => dialectEntries.value.reduce((sum, [, count]) => sum + count, 0));

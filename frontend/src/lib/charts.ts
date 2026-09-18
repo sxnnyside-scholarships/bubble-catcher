@@ -10,10 +10,10 @@ import {
   Tooltip,
 } from 'chart.js';
 
-/** Registers only the Chart.js pieces this app actually uses — keeps the bundle lean instead of pulling in the full chart.js kit. */
+/** Chart.js modular components registration. */
 ChartJS.register(ArcElement, BarElement, LineElement, PointElement, CategoryScale, LinearScale, Filler, Tooltip);
 
-/** Bubblemorphism chart palette — mirrors the tokens in style.css (kept as literals since <canvas> can't read CSS custom properties). */
+/** Chart color palette aligned with theme tokens. */
 export const CHART_COLORS = {
   primary: '#8b5cf6',
   accent: '#3b82f6',

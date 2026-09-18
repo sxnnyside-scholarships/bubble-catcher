@@ -68,7 +68,8 @@ services:
   # Runs on startup before the backend initializes, ensuring tables and triggers exist.
   migrate:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     env_file:
       - ./backend/.env
     environment:
@@ -83,7 +84,8 @@ services:
   # ── Application Backend (Bun) ───────────────────────────────────────
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     env_file:
       - ./backend/.env
@@ -109,9 +111,11 @@ services:
   # Multi-stage production build serving the SPA and reverse-proxying /api to backend.
   frontend:
     build:
-      context: ./frontend
+      context: .
+      dockerfile: frontend/Dockerfile
       args:
         VITE_API_URL: /api/v1
+
     restart: unless-stopped
     ports:
       - "${PORT:-80}:80"

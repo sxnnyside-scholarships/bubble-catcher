@@ -18,11 +18,13 @@ import MingcuteIcon from '@/components/MingcuteIcon.vue';
 import { resolveErrorCode } from '@/i18n';
 import { authJson, getJson } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
+import { useNotificationsStore } from '@/stores/notifications';
 import { useSettingsStore } from '@/stores/settings';
 
 const { t } = useI18n();
 const auth = useAuthStore();
 const settingsStore = useSettingsStore();
+const notificationsStore = useNotificationsStore();
 
 type ActiveTab = 'engines' | 'users' | 'settings';
 const currentTab = ref<ActiveTab>('engines');
@@ -70,6 +72,7 @@ async function toggleEngine(engine: EngineState) {
 
   if (response.success) {
     engines.value = engines.value.map((e) => (e.dialect === engine.dialect ? response.data : e));
+    notificationsStore.notifyEngineStatus(engine.dialect, action);
   } else {
     errorByDialect.value = {
       ...errorByDialect.value,
@@ -362,6 +365,11 @@ async function saveSettings() {
   settingsSaving.value = false;
   if (res.success) {
     showToast(t('admin.settingsSaved'));
+    for (const [key, enabled] of Object.entries(res.data.enabledFeatures)) {
+      if (enabled !== undefined) {
+        notificationsStore.notifyModeChange(key, enabled);
+      }
+    }
     settingsStore.updateFeatures(res.data.enabledFeatures);
   } else {
     showToast(resolveErrorCode(res.error.code), 'error');

@@ -17,7 +17,7 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    /** Rehydrates `user` from the access token — needed after a page reload, since only the tokens are persisted. */
+    /** Fetches the current user profile using the active access token. */
     async fetchProfile() {
       if (!this.accessToken) return;
       const result = await getJson<UserProfile>('/user/profile', this.accessToken);
@@ -32,14 +32,14 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem(REFRESH_TOKEN_KEY, session.refreshToken);
     },
 
-    /** Throws with the backend's error code as the message (e.g. 'INVALID_CREDENTIALS') — callers resolve it via resolveErrorCode(). */
+    /** Authenticates user with credentials and initializes session. */
     async login(payload: LoginPayload) {
       const result = await postJson<AuthSession>('/auth/login', payload);
       if (!result.success) throw new Error(result.error.code);
       this.setSession(result.data);
     },
 
-    /** Returns `{ pending: true }` when the instance requires admin approval — no session is created yet. */
+    /** Registers new user account with provided payload. */
     async signup(payload: SignupPayload): Promise<SignupResponse> {
       const result = await postJson<SignupResponse>('/auth/signup', payload);
       if (!result.success) throw new Error(result.error.code);
@@ -47,7 +47,7 @@ export const useAuthStore = defineStore('auth', {
       return result.data;
     },
 
-    /** Best-effort — revokes the refresh token server-side, but always clears local state even if the request fails (e.g. offline). */
+    /** Terminates current session, clears stored tokens, and revokes server token. */
     async logout() {
       const refreshToken = this.refreshToken;
       this.user = null;
@@ -60,7 +60,7 @@ export const useAuthStore = defineStore('auth', {
         try {
           await postJson('/auth/logout', { refreshToken });
         } catch {
-          /* Local session is already cleared — a failed revoke just leaves a stale token to expire naturally. */
+          // Ignore network errors during token revocation
         }
       }
     },

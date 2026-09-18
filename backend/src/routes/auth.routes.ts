@@ -21,13 +21,13 @@ import {
   rotateRefreshToken,
 } from '../services/token.service';
 
-/** Serializes the "is this the first user?" check so two concurrent signups can't both become admin. */
+/** Advisory lock identifier used to serialize initial instance bootstrap. */
 const FIRST_USER_LOCK_KEY = 78_412_003;
 
 export const authRoutes = new Elysia({ prefix: '/auth' })
   .use(jwtPlugin)
 
-  /* Sign up — the first user of the instance becomes admin (race-safe via advisory lock) */
+  /* Register a new account. Initial instance user receives admin privileges. */
   .post(
     '/signup',
     async ({ body, jwt }) => {
@@ -47,13 +47,13 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const registrationMode = await getRegistrationMode();
 
       const row = await db.transaction(async (tx) => {
-        /* Serialize against other concurrent signups for the duration of this transaction */
+        /* Serialize initial user creation transaction */
         await tx.execute(sql`SELECT pg_advisory_xact_lock(${FIRST_USER_LOCK_KEY})`);
 
         const [{ value: userCount }] = await tx.select({ value: count() }).from(usersTable);
         const isFirstUser = userCount === 0;
 
-        /* The very first account always bootstraps the instance regardless of registration governance. */
+        /* Instance bootstrap allows first user regardless of registration governance */
         if (!isFirstUser && registrationMode === 'invite_only') {
           throw AppError.forbidden('REGISTRATION_DISABLED');
         }
@@ -98,7 +98,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     },
   )
 
-  /* Log in */
+  /* Authenticate with email and password. */
   .post(
     '/login',
     async ({ body, jwt }) => {
@@ -163,7 +163,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     },
   )
 
-  /* Log out this device/session — revokes the presented refresh token only */
+  /* Revoke current session refresh token. */
   .post(
     '/logout',
     async ({ body }) => {
@@ -175,10 +175,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     },
   )
 
-  /*
-   * Always responds 200 regardless of whether the email exists — otherwise
-   * this endpoint becomes an account-enumeration oracle.
-   */
+  /* Initiate password reset flow. Responds uniformly to prevent email enumeration. */
   .post(
     '/forgot-password',
     async ({ body }) => {
@@ -212,7 +209,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const passwordHash = await hashPassword(body.newPassword);
       await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, consumed.userId));
 
-      /* Resetting the password invalidates every existing session */
+      /* Invalidate all active sessions upon password reset */
       await revokeAllRefreshTokens(consumed.userId);
 
       return success({ reset: true });
@@ -233,9 +230,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         throw AppError.badRequest('INVALID_OR_EXPIRED_TOKEN');
       }
 
-      /* Only mark verified if the token's email still matches the account's
-       * current email — protects against a stale token from before an email
-       * change silently verifying the new address. */
+      /* Verify token email matches current account email */
       const [row] = await db.select().from(usersTable).where(eq(usersTable.id, consumed.userId));
       if (row && row.email === consumed.email) {
         await db.update(usersTable).set({ emailVerifiedAt: new Date() }).where(eq(usersTable.id, consumed.userId));
@@ -248,7 +243,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     },
   )
 
-  /* Current session — validates the access token and returns the current user */
+  /* Retrieve authenticated user profile. */
   .use(authMiddleware)
   .get('/me', async ({ auth }) => {
     const [row] = await db

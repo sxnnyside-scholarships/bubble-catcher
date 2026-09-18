@@ -2,7 +2,7 @@ import type { ApiResult } from '@shared/types';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
-/** Unauthenticated POST — used by the auth store for /auth/signup and /auth/login. */
+/** Sends an unauthenticated JSON POST request. */
 export async function postJson<T>(path: string, body: unknown): Promise<ApiResult<T>> {
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',
@@ -13,7 +13,7 @@ export async function postJson<T>(path: string, body: unknown): Promise<ApiResul
   return response.json() as Promise<ApiResult<T>>;
 }
 
-/** GET request — pass accessToken for authenticated endpoints, or omit for public endpoints. */
+/** Sends a JSON GET request with optional authorization bearer token. */
 export async function getJson<T>(path: string, accessToken?: string): Promise<ApiResult<T>> {
   const headers: Record<string, string> = {};
   if (accessToken) {
@@ -26,7 +26,7 @@ export async function getJson<T>(path: string, accessToken?: string): Promise<Ap
   return response.json() as Promise<ApiResult<T>>;
 }
 
-/** Authenticated POST/PATCH/DELETE — used by the Playground (projects, execution). */
+/** Sends an authenticated HTTP request with JSON payload. */
 export async function authJson<T>(
   method: 'POST' | 'PATCH' | 'DELETE',
   path: string,
@@ -40,4 +40,8 @@ export async function authJson<T>(
   });
 
   return response.json() as Promise<ApiResult<T>>;
+}
+
+export async function patchJson<T>(path: string, accessToken: string, body?: unknown): Promise<ApiResult<T>> {
+  return authJson<T>('PATCH', path, accessToken, body);
 }

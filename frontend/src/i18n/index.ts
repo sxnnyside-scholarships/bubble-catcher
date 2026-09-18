@@ -37,7 +37,7 @@ export function currentLocale(): Locale {
   return i18n.global.locale.value as Locale;
 }
 
-/** Maps a backend AppError code to a localized message, falling back to INTERNAL_ERROR then the raw code. */
+/** Resolves application error code to localized message string. */
 export function resolveErrorCode(code: string): string {
   const messages = i18n.global.messages.value[currentLocale()];
   const errors = messages?.errors as Record<string, string> | undefined;

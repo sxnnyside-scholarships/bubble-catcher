@@ -33,7 +33,7 @@ export const userRoutes = new Elysia({ prefix: '/user' })
     },
   )
 
-  /* Requires the current password — revokes every other session (log out everywhere) after a successful change. */
+  /* Update user password and revoke all active sessions. */
   .patch(
     '/password',
     async ({ auth, body }) => {
@@ -57,7 +57,7 @@ export const userRoutes = new Elysia({ prefix: '/user' })
     },
   )
 
-  /* Requires the current password — resets email verification, a new verification email is sent. */
+  /* Update user email address and trigger re-verification. */
   .patch(
     '/email',
     async ({ auth, body }) => {
@@ -92,7 +92,7 @@ export const userRoutes = new Elysia({ prefix: '/user' })
     },
   )
 
-  /* Self-service account deactivation — soft delete, never a hard DELETE. Requires the current password as confirmation. */
+  /* Soft-delete user account and revoke active sessions. */
   .delete(
     '/account',
     async ({ auth, body }) => {

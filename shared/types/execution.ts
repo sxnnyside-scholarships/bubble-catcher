@@ -8,8 +8,7 @@ export interface ExecutionError {
 }
 
 /**
- * Normalized execution response.
- * This is the contract returned to the frontend — never raw CLI output.
+ * Normalized execution result from a sandbox query run.
  */
 export interface ExecutionResult {
   success: boolean;
@@ -19,7 +18,7 @@ export interface ExecutionResult {
   rowCount?: number;
   executionTimeMs: number;
   error?: ExecutionError;
-  /** Internal — not relied upon by frontend */
+  /** Container identifier for execution tracking. */
   containerId?: string;
   executedAt: string;
 }

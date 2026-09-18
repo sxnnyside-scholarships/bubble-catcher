@@ -19,7 +19,7 @@ const TYPE_LABELS: Record<ColumnType, string> = {
   datetime: 'sandbox.typeDatetime',
 };
 
-/** Illustrative only — the server picks the real per-dialect spelling (SERIAL vs AUTO_INCREMENT, etc.). */
+/** Generic SQL type mapping for schema preview. */
 const PREVIEW_SQL_TYPE: Record<ColumnType, string> = {
   text: 'TEXT',
   integer: 'INTEGER',

@@ -1,8 +1,5 @@
 /**
- * Client-side feedback only — the backend is the real authority (email
- * format via Elysia's `t.String({format:'email'})`, password via
- * `minLength: 8`). These regexes exist purely to give the user immediate
- * inline feedback before they submit.
+ * Client-side format validation helpers for immediate user feedback.
  */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
