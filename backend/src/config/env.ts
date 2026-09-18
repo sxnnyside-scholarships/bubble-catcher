@@ -48,6 +48,10 @@ interface EnvironmentConfig {
 function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
+    if (process.env['NODE_ENV'] === 'test' || process.env['BUN_TEST'] === '1') {
+      if (key === 'JWT_SECRET') return 'test-jwt-secret-minimum-32-chars-long-for-testing';
+      if (key === 'DATABASE_URL') return 'postgres://postgres:postgres@localhost:5432/bubble_test';
+    }
     throw new Error(`Missing required environment variable: ${key}`);
   }
   return value;

@@ -28,6 +28,9 @@ jobs:
 
       - name: Run quality gate
         run: just check
+        env:
+          JWT_SECRET: test-jwt-secret-minimum-32-chars-long-for-ci
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/bubble_test
 
       - name: Build production artifacts
         run: just build
