@@ -4,7 +4,7 @@
  * Outputs one JSON object per line to stdout/stderr.
  * Never logs raw SQL — only SHA-256 hashes.
  */
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 
@@ -31,7 +31,7 @@ function write(level: LogLevel, message: string, fields?: LogFields): void {
   };
 
   const out = level === 'error' ? process.stderr : process.stdout;
-  out.write(JSON.stringify(entry) + '\n');
+  out.write(`${JSON.stringify(entry)}\n`);
 }
 
 export const logger = {
@@ -48,5 +48,5 @@ export const logger = {
 
 /** SHA-256 hash of SQL, truncated to first 16 hex chars. Safe for logging. */
 export function hashQuery(sql: string): string {
-  return 'sha256:' + createHash('sha256').update(sql).digest('hex').slice(0, 16);
+  return `sha256:${createHash('sha256').update(sql).digest('hex').slice(0, 16)}`;
 }

@@ -1,4 +1,4 @@
-import { SERVER_BASED_DIALECTS } from '@shared/types';
+import { SERVER_BASED_DIALECTS, type ServerBasedDialect } from '@shared/types';
 import { and, count, desc, eq } from 'drizzle-orm';
 import { Elysia, t } from 'elysia';
 import { config } from '../config';
@@ -386,7 +386,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     '/sandbox/engines/:dialect/start',
     async ({ params }) => {
       const dialectStr = params.dialect as string;
-      const engine = await sandboxService.startEngine(dialectStr as any);
+      const engine = await sandboxService.startEngine(dialectStr as ServerBasedDialect);
       const dialectName = dialectStr.charAt(0).toUpperCase() + dialectStr.slice(1);
       recordNotification(
         'engine_started',
@@ -403,7 +403,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     '/sandbox/engines/:dialect/stop',
     async ({ params }) => {
       const dialectStr = params.dialect as string;
-      const engine = await sandboxService.stopEngine(dialectStr as any);
+      const engine = await sandboxService.stopEngine(dialectStr as ServerBasedDialect);
       const dialectName = dialectStr.charAt(0).toUpperCase() + dialectStr.slice(1);
       recordNotification(
         'engine_stopped',

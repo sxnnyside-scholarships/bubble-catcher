@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 /** Password hashing via Bun's native argon2id — no external dependency needed. */
 export function hashPassword(password: string): Promise<string> {

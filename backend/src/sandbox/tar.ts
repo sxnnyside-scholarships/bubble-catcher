@@ -7,11 +7,11 @@ export function buildSingleFileTar(filename: string, content: string): Buffer {
   header.write('000644 \0', 100, 8, 'utf-8'); // mode
   header.write('000000 \0', 108, 8, 'utf-8'); // uid
   header.write('000000 \0', 116, 8, 'utf-8'); // gid
-  header.write(data.length.toString(8).padStart(11, '0') + ' ', 124, 12, 'utf-8'); // size
+  header.write(`${data.length.toString(8).padStart(11, '0')} `, 124, 12, 'utf-8'); // size
   header.write(
-    Math.floor(Date.now() / 1000)
+    `${Math.floor(Date.now() / 1000)
       .toString(8)
-      .padStart(11, '0') + ' ',
+      .padStart(11, '0')} `,
     136,
     12,
     'utf-8',
@@ -23,7 +23,7 @@ export function buildSingleFileTar(filename: string, content: string): Buffer {
 
   let checksum = 0;
   for (const byte of header) checksum += byte;
-  header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'utf-8');
+  header.write(`${checksum.toString(8).padStart(6, '0')}\0 `, 148, 8, 'utf-8');
 
   const paddedSize = Math.ceil(data.length / 512) * 512;
   const dataBlock = Buffer.alloc(paddedSize);

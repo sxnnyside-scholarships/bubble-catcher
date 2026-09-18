@@ -1,6 +1,6 @@
 /** Applies triggers.sql via the `postgres` driver instead of shelling out to `psql`, so the image doesn't need a postgresql-client install. */
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import postgres from 'postgres';
 import { config } from '../config';
 

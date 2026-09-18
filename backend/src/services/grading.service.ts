@@ -1,4 +1,4 @@
-import type { AnalysisIssue, AnalysisResult, ExecutionResult, GradeBreakdown } from '@shared/types';
+import type { AnalysisIssue, AnalysisResult, ExecutionResult, GradeBreakdown, SupportedDialect } from '@shared/types';
 import { analysisEngine } from '../analysis';
 
 export class GradingEngine {
@@ -66,7 +66,7 @@ export class GradingEngine {
    */
   evaluate(
     studentSql: string,
-    dialect: any,
+    dialect: SupportedDialect,
     studentResult: ExecutionResult,
     referenceResult: ExecutionResult | null,
     maxScore = 100,

@@ -1,3 +1,4 @@
+import type { ChallengeDifficulty, SupportedDialect } from '@shared/types';
 import { Elysia, t } from 'elysia';
 import { success } from '../lib/response';
 import { authMiddleware } from '../middleware';
@@ -81,8 +82,8 @@ export const competitionRoutes = new Elysia({ prefix: '/competition' })
       const challenge = await competitionService.createChallenge(auth.userId, {
         title: body.title,
         description: body.description,
-        dialect: body.dialect as any,
-        difficulty: body.difficulty as any,
+        dialect: body.dialect as SupportedDialect,
+        difficulty: body.difficulty as ChallengeDifficulty,
         initialSchemaSql: body.initialSchemaSql,
         referenceQuerySql: body.referenceQuerySql,
         targetExecutionTimeMs: body.targetExecutionTimeMs ?? 10.0,

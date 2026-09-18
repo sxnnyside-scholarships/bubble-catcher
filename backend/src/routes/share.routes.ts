@@ -1,3 +1,4 @@
+import type { CreatePlaygroundSharePayload } from '@shared/types';
 import { Elysia, t } from 'elysia';
 import { success } from '../lib/response';
 import { authMiddleware } from '../middleware';
@@ -9,7 +10,7 @@ export const shareRoutes = new Elysia({ prefix: '/playground/shares' })
   .post(
     '/',
     async ({ auth, body }) => {
-      const share = await playgroundShareService.createShare(auth.userId, body as any);
+      const share = await playgroundShareService.createShare(auth.userId, body as CreatePlaygroundSharePayload);
       return success(share);
     },
     {

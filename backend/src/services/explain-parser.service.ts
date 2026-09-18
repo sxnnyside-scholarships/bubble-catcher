@@ -26,7 +26,7 @@ export class ExplainParserService {
 
   /* ── PostgreSQL Parser ────────────────────────────────────────── */
   private parsePostgres(raw: string, fallbackExecutionTimeMs: number): ExplainPlanResult {
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
     } catch {
@@ -36,8 +36,8 @@ export class ExplainParserService {
       else throw new Error('Invalid Postgres JSON');
     }
 
-    const report = Array.isArray(parsed) ? parsed[0] : parsed;
-    const plan = report.Plan;
+    const report = (Array.isArray(parsed) ? parsed[0] : parsed) as Record<string, unknown>;
+    const plan = report?.Plan as Record<string, unknown>;
     if (!plan) throw new Error('Missing Plan object in Postgres output');
 
     let counter = 0;
@@ -45,11 +45,12 @@ export class ExplainParserService {
     const executionTimeMs = Number(report['Execution Time']) || fallbackExecutionTimeMs;
     const planningTimeMs = Number(report['Planning Time']) || 0;
 
-    function buildNode(p: any): ExplainNode {
+    function buildNode(p: Record<string, unknown>): ExplainNode {
       const id = `pg-node-${++counter}`;
-      const children = Array.isArray(p.Plans) ? p.Plans.map(buildNode) : [];
+      const plans = Array.isArray(p.Plans) ? (p.Plans as Record<string, unknown>[]) : [];
+      const children = plans.map(buildNode);
 
-      const nodeType = p['Node Type'] || 'Operation';
+      const nodeType = p['Node Type'] ? String(p['Node Type']) : 'Operation';
       const actualTotalTime = Number(p['Actual Total Time']) || 0;
       const loops = Number(p['Actual Loops']) || 1;
       const actualRows = Number(p['Actual Rows']) || 0;
@@ -64,8 +65,12 @@ export class ExplainParserService {
       );
       const actualTimeMs = Math.max(0, actualTotalTime * loops - childrenTime);
 
-      const relationName = p['Relation Name'] || p['Alias'] || undefined;
-      const indexName = p['Index Name'] || undefined;
+      const relationName = p['Relation Name']
+        ? String(p['Relation Name'])
+        : p['Alias']
+          ? String(p['Alias'])
+          : undefined;
+      const indexName = p['Index Name'] ? String(p['Index Name']) : undefined;
       const filter = p['Filter'] ? String(p['Filter']) : undefined;
       const condition =
         p['Hash Cond'] || p['Join Filter'] || p['Index Cond']
@@ -132,34 +137,36 @@ export class ExplainParserService {
 
   /* ── MySQL / MariaDB Parser ───────────────────────────────────── */
   private parseMysql(raw: string, fallbackExecutionTimeMs: number): ExplainPlanResult {
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
     } catch {
       return this.parseMysqlText(raw, fallbackExecutionTimeMs);
     }
 
-    const qBlock = parsed.query_block;
+    const qBlock = (parsed as { query_block?: Record<string, unknown> })?.query_block;
     if (!qBlock) return this.parseMysqlText(raw, fallbackExecutionTimeMs);
 
     let counter = 0;
-    const totalCost = Number(qBlock.cost_info?.query_cost) || 0;
+    const qBlockCost = qBlock.cost_info as Record<string, unknown> | undefined;
+    const totalCost = Number(qBlockCost?.query_cost) || 0;
 
-    function parseBlock(block: any): ExplainNode[] {
+    function parseBlock(block: Record<string, unknown>): ExplainNode[] {
       const nodes: ExplainNode[] = [];
 
-      if (block.table) {
-        const t = block.table;
-        const accessType = t.access_type || 'ALL';
+      if (block.table && typeof block.table === 'object') {
+        const t = block.table as Record<string, unknown>;
+        const accessType = (t.access_type as string) || 'ALL';
         const isScan = accessType === 'ALL';
         const nodeType = isScan ? 'Seq Scan (Table Scan)' : `Index Access (${accessType})`;
-        const cost = Number(t.cost_info?.prefix_cost || t.cost_info?.read_cost) || 0;
+        const tableCost = t.cost_info as Record<string, unknown> | undefined;
+        const cost = Number(tableCost?.prefix_cost || tableCost?.read_cost) || 0;
 
         nodes.push({
           id: `mysql-node-${++counter}`,
           nodeType,
-          relationName: t.table_name,
-          indexName: t.key,
+          relationName: t.table_name as string | undefined,
+          indexName: t.key as string | undefined,
           cost,
           totalCost: cost,
           actualTimeMs: 0,
@@ -168,19 +175,19 @@ export class ExplainParserService {
           planRows: Number(t.rows_examined_per_scan) || 0,
           loops: 1,
           costPercent: totalCost > 0 ? Math.min(100, Math.round((cost / totalCost) * 100)) : 100,
-          condition: t.attached_condition,
+          condition: t.attached_condition as string | undefined,
           children: [],
         });
       }
 
       if (Array.isArray(block.nested_loop)) {
-        for (const loopItem of block.nested_loop) {
+        for (const loopItem of block.nested_loop as Record<string, unknown>[]) {
           nodes.push(...parseBlock(loopItem));
         }
       }
 
-      if (block.ordering_operation) {
-        const childNodes = parseBlock(block.ordering_operation);
+      if (block.ordering_operation && typeof block.ordering_operation === 'object') {
+        const childNodes = parseBlock(block.ordering_operation as Record<string, unknown>);
         nodes.push({
           id: `mysql-node-${++counter}`,
           nodeType: 'Sort (ORDER BY)',
@@ -196,8 +203,8 @@ export class ExplainParserService {
         });
       }
 
-      if (block.grouping_operation) {
-        const childNodes = parseBlock(block.grouping_operation);
+      if (block.grouping_operation && typeof block.grouping_operation === 'object') {
+        const childNodes = parseBlock(block.grouping_operation as Record<string, unknown>);
         nodes.push({
           id: `mysql-node-${++counter}`,
           nodeType: 'Aggregate (GROUP BY)',
@@ -340,7 +347,7 @@ export class ExplainParserService {
 
   /* ── SQLite Parser (EXPLAIN QUERY PLAN) ────────────────────────── */
   private parseSqlite(raw: string, fallbackExecutionTimeMs: number): ExplainPlanResult {
-    let rows: any[] = [];
+    let rows: Array<{ id: number; parent: number; notused?: number; detail: string }> = [];
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) rows = parsed;
@@ -348,7 +355,7 @@ export class ExplainParserService {
       const lines = raw.split('\n').filter((l) => l.trim().length > 0);
       for (const line of lines) {
         const parts = line.split('|').map((p) => p.trim());
-        if (parts.length >= 4 && !isNaN(Number(parts[0]))) {
+        if (parts.length >= 4 && !Number.isNaN(Number(parts[0]))) {
           rows.push({
             id: Number(parts[0]),
             parent: Number(parts[1]),
